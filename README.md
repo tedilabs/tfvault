@@ -26,12 +26,13 @@ curl -fsSL https://raw.githubusercontent.com/tedilabs/tfvault/main/install.sh | 
 ```
 
 Or manually: download a release archive, verify `checksums.txt`, and put
-`terraform-credentials-tfvault` into `~/.terraform.d/plugins/` (create
-the directory if needed). From source:
+the `tfvault` binary into `~/.terraform.d/plugins/` under the name
+`terraform-credentials-tfvault` — the name Terraform discovers helpers
+by. From source:
 
 ```sh
-go build ./cmd/terraform-credentials-tfvault
-install -m 0755 terraform-credentials-tfvault ~/.terraform.d/plugins/
+go build ./cmd/tfvault
+install -m 0755 tfvault ~/.terraform.d/plugins/terraform-credentials-tfvault
 ```
 
 ## Quick start
@@ -174,9 +175,9 @@ helper. The env backend is useful for the *prefix override* case
 ## Auxiliary commands
 
 ```sh
-terraform-credentials-tfvault profiles                      # list profiles, default marked with *
-terraform-credentials-tfvault --profile customer-b list    # hostnames with stored credentials
-terraform-credentials-tfvault version
+tfvault profiles                    # list profiles, default marked with *
+tfvault --profile customer-b list   # hostnames with stored credentials
+tfvault version
 ```
 
 `list` is supported by the `pass` and `env` backends; OS keyrings cannot

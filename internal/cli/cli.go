@@ -1,4 +1,4 @@
-// Package cli implements the terraform-credentials-tfvault command line
+// Package cli implements the tfvault command line
 // interface, including the Terraform credentials helper protocol
 // (get/store/forget) and a few auxiliary commands.
 package cli
@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-const usage = `Usage: terraform-credentials-tfvault [flags] <command> [hostname]
+const usage = `Usage: tfvault [flags] <command> [hostname]
 
 Terraform credentials helper commands (invoked by Terraform):
   get <hostname>      print stored credentials for hostname as JSON
@@ -33,7 +33,7 @@ var resolveBackend = defaultResolveBackend
 // Run executes the CLI and returns the process exit code. All I/O goes
 // through the provided streams so the full program is testable.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("terraform-credentials-tfvault", flag.ContinueOnError)
+	fs := flag.NewFlagSet("tfvault", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
 	profile := fs.String("profile", "", "profile name")
@@ -61,7 +61,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	default:
 		// Unknown verbs must fail so future protocol extensions are not
 		// silently misinterpreted.
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: unknown command %q\n", verb)
+		fmt.Fprintf(stderr, "tfvault: unknown command %q\n", verb)
 		return 1
 	}
 }

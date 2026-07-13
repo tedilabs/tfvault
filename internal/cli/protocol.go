@@ -17,7 +17,7 @@ func runProtocol(verb string, args []string, configPath, profile string, stdin i
 		if verb == "store" {
 			_, _ = io.Copy(io.Discard, stdin)
 		}
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: %s: %v\n", verb, err)
+		fmt.Fprintf(stderr, "tfvault: %s: %v\n", verb, err)
 		return 1
 	}
 
@@ -49,7 +49,7 @@ func runGet(b backend.Backend, hostname string, stdout, stderr io.Writer) int {
 	if err != nil {
 		// Fail closed: an ambiguous backend error must not become an empty
 		// {} success, which would let Terraform proceed unauthenticated.
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: get %s: %v\n", hostname, err)
+		fmt.Fprintf(stderr, "tfvault: get %s: %v\n", hostname, err)
 		return 1
 	}
 	if !found {
@@ -60,7 +60,7 @@ func runGet(b backend.Backend, hostname string, stdout, stderr io.Writer) int {
 		Token string `json:"token"`
 	}{token})
 	if err != nil {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: get %s: %v\n", hostname, err)
+		fmt.Fprintf(stderr, "tfvault: get %s: %v\n", hostname, err)
 		return 1
 	}
 	fmt.Fprintln(stdout, string(out))
@@ -72,7 +72,7 @@ func runStore(b backend.Backend, hostname string, stdin io.Reader, stderr io.Wri
 	// failing, so read everything up front.
 	raw, err := io.ReadAll(stdin)
 	fail := func(err error) int {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: store %s: %v\n", hostname, err)
+		fmt.Fprintf(stderr, "tfvault: store %s: %v\n", hostname, err)
 		return 1
 	}
 	if err != nil {
@@ -112,10 +112,10 @@ func runStore(b backend.Backend, hostname string, stdin io.Reader, stderr io.Wri
 func runForget(b backend.Backend, hostname string, stderr io.Writer) int {
 	if err := b.Forget(hostname); err != nil {
 		if errors.Is(err, backend.ErrReadOnly) {
-			fmt.Fprintf(stderr, "terraform-credentials-tfvault: forget %s: the %q backend is read-only\n", hostname, b.Name())
+			fmt.Fprintf(stderr, "tfvault: forget %s: the %q backend is read-only\n", hostname, b.Name())
 			return 1
 		}
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: forget %s: %v\n", hostname, err)
+		fmt.Fprintf(stderr, "tfvault: forget %s: %v\n", hostname, err)
 		return 1
 	}
 	return 0

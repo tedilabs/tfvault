@@ -1,6 +1,7 @@
 #!/bin/sh
-# Installs terraform-credentials-tfvault into Terraform's plugin
-# directory (~/.terraform.d/plugins). No sudo required.
+# Installs the tfvault binary into Terraform's plugin directory
+# (~/.terraform.d/plugins) under the terraform-credentials-tfvault
+# name Terraform discovers helpers by. No sudo required.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/tedilabs/tfvault/main/install.sh | sh
@@ -8,7 +9,8 @@
 set -eu
 
 REPO="tedilabs/tfvault"
-BINARY="terraform-credentials-tfvault"
+BINARY="tfvault"
+HELPER="terraform-credentials-tfvault"
 PLUGIN_DIR="${HOME}/.terraform.d/plugins"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -56,9 +58,9 @@ echo "Checksum verified."
 
 tar -xzf "${tmp}/${asset}" -C "$tmp"
 mkdir -p "$PLUGIN_DIR"
-install -m 0755 "${tmp}/${BINARY}" "${PLUGIN_DIR}/${BINARY}"
+install -m 0755 "${tmp}/${BINARY}" "${PLUGIN_DIR}/${HELPER}"
 
-echo "Installed ${BINARY} ${version} to ${PLUGIN_DIR}"
+echo "Installed ${HELPER} ${version} to ${PLUGIN_DIR}"
 cat <<'EOF'
 
 To finish setup, add this to your ~/.terraformrc
