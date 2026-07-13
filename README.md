@@ -215,3 +215,7 @@ go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
 
 The Terraform credentials helper protocol is documented at
 [developer.hashicorp.com/terraform/internals/credentials-helpers](https://developer.hashicorp.com/terraform/internals/credentials-helpers).
+
+## License
+
+[Apache License 2.0](LICENSE)
