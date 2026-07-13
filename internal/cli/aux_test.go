@@ -21,15 +21,14 @@ func (b *listingBackend) List() ([]string, error) { return b.hosts, nil }
 
 func TestProfilesOutput(t *testing.T) {
 	path := writeTestConfig(t, `
-default_profile = "work"
-profile "work" {
-  testbe {
-    service = "svc-work"
-  }
-}
-profile "personal" {
-  testbe {}
-}
+default_profile: work
+profiles:
+  work:
+    backend: testbe
+    options:
+      service: svc-work
+  personal:
+    backend: testbe
 `)
 	var out, errOut bytes.Buffer
 	code := Run([]string{"--config", path, "profiles"}, strings.NewReader(""), &out, &errOut)
@@ -46,7 +45,7 @@ profile "personal" {
 }
 
 func TestProfilesZeroConfig(t *testing.T) {
-	t.Setenv("TFVAULT_CONFIG", "/nonexistent/tfvault/config.hcl")
+	t.Setenv("TFVAULT_CONFIG", "/nonexistent/tfvault/config.yaml")
 	var out, errOut bytes.Buffer
 	code := Run([]string{"profiles"}, strings.NewReader(""), &out, &errOut)
 	if code != 0 {

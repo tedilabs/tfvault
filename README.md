@@ -59,36 +59,30 @@ Terraform Cloud.
 
 The core feature: different `.terraformrc` files can use different
 credential sets via profiles. Define profiles in
-`~/.config/tfvault/config.hcl`:
+`~/.config/tfvault/config.yaml`:
 
-```hcl
-default_profile = "personal"
+```yaml
+default_profile: personal
 
-profile "personal" {
-  keyring {
-    service = "tfvault-personal"
-  }
-}
-
-profile "customer-a" {
-  keyring {
-    service = "tfvault-customer-a"
-  }
-}
-
-profile "customer-b" {
-  pass {
-    binary    = "gopass"
-    prefix    = "customers/b/terraform"
-    store_dir = "~/.password-store-customer-b"
-  }
-}
-
-profile "ci" {
-  env {
-    prefix = "CI_TF_TOKEN_"
-  }
-}
+profiles:
+  personal:
+    backend: keyring
+    options:
+      service: tfvault-personal
+  customer-a:
+    backend: keyring
+    options:
+      service: tfvault-customer-a
+  customer-b:
+    backend: pass
+    options:
+      binary: gopass
+      prefix: customers/b/terraform
+      store_dir: ~/.password-store-customer-b
+  ci:
+    backend: env
+    options:
+      prefix: CI_TF_TOKEN_
 ```
 
 Create one `.terraformrc` per account:
@@ -117,23 +111,26 @@ Config file lookup order:
 
 1. `--config <path>` (set via `args` in the `credentials_helper` block)
 2. `$TFVAULT_CONFIG`
-3. `$XDG_CONFIG_HOME/tfvault/config.hcl`, falling back to
-   `~/.config/tfvault/config.hcl`
+3. `$XDG_CONFIG_HOME/tfvault/config.yaml`, falling back to
+   `~/.config/tfvault/config.yaml`
 
-If no config file exists, the implicit `default` profile uses
-`keyring { service = "tfvault" }`. Requesting any other named profile
-without a config file is an error — a named profile implies isolation
-you set up on purpose, so tfvault never falls back to shared storage.
+If no config file exists, the implicit `default` profile uses the
+`keyring` backend with `service: tfvault`. Requesting any other named
+profile without a config file is an error — a named profile implies
+isolation you set up on purpose, so tfvault never falls back to shared
+storage.
 
-Each `profile "<name>" { ... }` block contains exactly one backend
-block:
+Each entry under `profiles` names exactly one `backend` and passes the
+keys under `options` to it:
 
 ### `keyring`
 
-```hcl
-keyring {
-  service = "tfvault"   # keyring service name (default "tfvault")
-}
+```yaml
+profiles:
+  example:
+    backend: keyring
+    options:
+      service: tfvault # keyring service name (default "tfvault")
 ```
 
 Entries are stored as (service, hostname). On Linux this requires a
@@ -142,12 +139,14 @@ machines use the `pass` backend instead.
 
 ### `pass`
 
-```hcl
-pass {
-  binary    = "pass"        # or "gopass", or an absolute path (default "pass")
-  prefix    = "terraform"   # entry path: <prefix>/<hostname> (default "terraform")
-  store_dir = ""            # sets PASSWORD_STORE_DIR for per-profile stores (optional)
-}
+```yaml
+profiles:
+  example:
+    backend: pass
+    options:
+      binary: pass # or "gopass", or an absolute path (default "pass")
+      prefix: terraform # entry path: <prefix>/<hostname> (default "terraform")
+      store_dir: ~/.password-store # sets PASSWORD_STORE_DIR for per-profile stores (optional)
 ```
 
 Tokens are exchanged with the child process via stdin/stdout only,
@@ -155,10 +154,12 @@ never argv. Both pass and gopass are supported and integration-tested.
 
 ### `env` (read-only)
 
-```hcl
-env {
-  prefix = "TF_TOKEN_"   # default
-}
+```yaml
+profiles:
+  example:
+    backend: env
+    options:
+      prefix: TF_TOKEN_ # default
 ```
 
 Looks up `<prefix><encoded-hostname>` where `.` becomes `_` and `-`

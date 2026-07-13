@@ -1,21 +1,20 @@
-// Package config loads the tfvault profile configuration from an HCL
-// file. Each profile contains exactly one backend block; the block's
-// options are handed opaquely to the backend factory, so this package
-// needs no knowledge of individual backend schemas.
+// Package config loads the tfvault profile configuration from a YAML
+// file. Each profile names exactly one backend; the profile's options
+// map is handed opaquely to the backend factory, so this package needs
+// no knowledge of individual backend schemas.
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
+	"gopkg.in/yaml.v3"
 )
 
 // Profile is one named credentials profile.
@@ -37,7 +36,7 @@ type Config struct {
 }
 
 // ResolvePath returns the config file path to use: the explicit flag
-// value, then $TFVAULT_CONFIG, then $XDG_CONFIG_HOME/tfvault/config.hcl
+// value, then $TFVAULT_CONFIG, then $XDG_CONFIG_HOME/tfvault/config.yaml
 // (with ~/.config as the XDG fallback).
 func ResolvePath(flagPath string) (string, error) {
 	if flagPath != "" {
@@ -54,7 +53,7 @@ func ResolvePath(flagPath string) (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "tfvault", "config.hcl"), nil
+	return filepath.Join(base, "tfvault", "config.yaml"), nil
 }
 
 // Load resolves the config path and parses the file. When the file does
@@ -84,46 +83,44 @@ func Load(flagPath string) (*Config, error) {
 	return cfg, nil
 }
 
+// yamlConfig mirrors the on-disk YAML schema:
+//
+//	default_profile: personal
+//	profiles:
+//	  personal:
+//	    backend: keyring
+//	    options:
+//	      service: tfvault-personal
+type yamlConfig struct {
+	DefaultProfile string                 `yaml:"default_profile"`
+	Profiles       map[string]yamlProfile `yaml:"profiles"`
+}
+
+type yamlProfile struct {
+	Backend string            `yaml:"backend"`
+	Options map[string]string `yaml:"options"`
+}
+
 func parse(src []byte, path string) (*Config, error) {
-	parser := hclparse.NewParser()
-	file, diags := parser.ParseHCL(src, path)
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("parsing config: %w", diags)
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil, fmt.Errorf("parsing config %s: unexpected body type", path)
+	var raw yamlConfig
+	dec := yaml.NewDecoder(bytes.NewReader(src))
+	// Reject unknown keys so typos fail loudly instead of being ignored.
+	dec.KnownFields(true)
+	if err := dec.Decode(&raw); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
-	cfg := &Config{Profiles: map[string]*Profile{}, Path: path}
+	cfg := &Config{Profiles: map[string]*Profile{}, Path: path, DefaultProfile: raw.DefaultProfile}
 
-	for name, attr := range body.Attributes {
-		if name != "default_profile" {
-			return nil, fmt.Errorf("%s: unsupported attribute %q", path, name)
+	for name, p := range raw.Profiles {
+		if p.Backend == "" {
+			return nil, fmt.Errorf("%s: profile %q: must specify a backend", path, name)
 		}
-		v, err := stringValue(attr.Expr)
-		if err != nil {
-			return nil, fmt.Errorf("%s: default_profile: %w", path, err)
+		opts := p.Options
+		if opts == nil {
+			opts = map[string]string{}
 		}
-		cfg.DefaultProfile = v
-	}
-
-	for _, block := range body.Blocks {
-		if block.Type != "profile" {
-			return nil, fmt.Errorf("%s: unsupported block type %q", path, block.Type)
-		}
-		if len(block.Labels) != 1 {
-			return nil, fmt.Errorf("%s: profile block requires exactly one name label", path)
-		}
-		name := block.Labels[0]
-		if _, dup := cfg.Profiles[name]; dup {
-			return nil, fmt.Errorf("%s: duplicate profile %q", path, name)
-		}
-		p, err := parseProfile(name, block.Body)
-		if err != nil {
-			return nil, fmt.Errorf("%s: profile %q: %w", path, name, err)
-		}
-		cfg.Profiles[name] = p
+		cfg.Profiles[name] = &Profile{Name: name, Backend: p.Backend, Options: opts}
 	}
 
 	if cfg.DefaultProfile != "" {
@@ -133,47 +130,6 @@ func parse(src []byte, path string) (*Config, error) {
 		}
 	}
 	return cfg, nil
-}
-
-func parseProfile(name string, body *hclsyntax.Body) (*Profile, error) {
-	for attrName := range body.Attributes {
-		return nil, fmt.Errorf("unexpected attribute %q (backend options belong inside a backend block)", attrName)
-	}
-	if len(body.Blocks) != 1 {
-		return nil, fmt.Errorf("must contain exactly one backend block, found %d", len(body.Blocks))
-	}
-	block := body.Blocks[0]
-	if len(block.Labels) != 0 {
-		return nil, fmt.Errorf("backend block %q takes no labels", block.Type)
-	}
-	if len(block.Body.Blocks) != 0 {
-		return nil, fmt.Errorf("backend block %q must not contain nested blocks", block.Type)
-	}
-
-	opts := map[string]string{}
-	for optName, attr := range block.Body.Attributes {
-		v, err := stringValue(attr.Expr)
-		if err != nil {
-			return nil, fmt.Errorf("backend %q option %q: %w", block.Type, optName, err)
-		}
-		opts[optName] = v
-	}
-	return &Profile{Name: name, Backend: block.Type, Options: opts}, nil
-}
-
-func stringValue(expr hclsyntax.Expression) (string, error) {
-	val, diags := expr.Value(nil)
-	if diags.HasErrors() {
-		return "", fmt.Errorf("evaluating value: %w", diags)
-	}
-	val, err := convert.Convert(val, cty.String)
-	if err != nil {
-		return "", fmt.Errorf("value must be a string: %w", err)
-	}
-	if val.IsNull() {
-		return "", errors.New("value must not be null")
-	}
-	return val.AsString(), nil
 }
 
 // ProfileNames returns the configured profile names, sorted.

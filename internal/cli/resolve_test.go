@@ -28,7 +28,7 @@ func init() {
 
 func writeTestConfig(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.hcl")
+	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -37,11 +37,11 @@ func writeTestConfig(t *testing.T, content string) string {
 
 func TestResolveNamedProfile(t *testing.T) {
 	path := writeTestConfig(t, `
-profile "customer-a" {
-  testbe {
-    service = "svc-a"
-  }
-}
+profiles:
+  customer-a:
+    backend: testbe
+    options:
+      service: svc-a
 `)
 	var stderr bytes.Buffer
 	b, err := defaultResolveBackend(path, "customer-a", &stderr)
@@ -56,13 +56,12 @@ profile "customer-a" {
 
 func TestResolveDefaultProfileFromConfig(t *testing.T) {
 	path := writeTestConfig(t, `
-default_profile = "personal"
-profile "personal" {
-  testbe {}
-}
-profile "work" {
-  testbe {}
-}
+default_profile: personal
+profiles:
+  personal:
+    backend: testbe
+  work:
+    backend: testbe
 `)
 	var stderr bytes.Buffer
 	if _, err := defaultResolveBackend(path, "", &stderr); err != nil {
@@ -71,9 +70,10 @@ profile "work" {
 }
 
 func TestResolveProfileNotFound(t *testing.T) {
-	path := writeTestConfig(t, `profile "personal" {
-  testbe {}
-}`)
+	path := writeTestConfig(t, `profiles:
+  personal:
+    backend: testbe
+`)
 	var stderr bytes.Buffer
 	_, err := defaultResolveBackend(path, "missing", &stderr)
 	if err == nil {
@@ -85,7 +85,7 @@ func TestResolveProfileNotFound(t *testing.T) {
 }
 
 func TestResolveZeroConfigUsesKeyring(t *testing.T) {
-	missing := filepath.Join(t.TempDir(), "nope.hcl")
+	missing := filepath.Join(t.TempDir(), "nope.yaml")
 	var stderr bytes.Buffer
 	for _, profile := range []string{"", "default"} {
 		b, err := defaultResolveBackend(missing, profile, &stderr)
@@ -99,7 +99,7 @@ func TestResolveZeroConfigUsesKeyring(t *testing.T) {
 }
 
 func TestResolveNamedProfileWithoutConfigFails(t *testing.T) {
-	missing := filepath.Join(t.TempDir(), "nope.hcl")
+	missing := filepath.Join(t.TempDir(), "nope.yaml")
 	var stderr bytes.Buffer
 	_, err := defaultResolveBackend(missing, "customer-a", &stderr)
 	if err == nil {
@@ -111,9 +111,10 @@ func TestResolveNamedProfileWithoutConfigFails(t *testing.T) {
 }
 
 func TestResolveUnknownBackend(t *testing.T) {
-	path := writeTestConfig(t, `profile "a" {
-  doesnotexist {}
-}`)
+	path := writeTestConfig(t, `profiles:
+  a:
+    backend: doesnotexist
+`)
 	var stderr bytes.Buffer
 	_, err := defaultResolveBackend(path, "a", &stderr)
 	if err == nil {
@@ -125,9 +126,10 @@ func TestResolveUnknownBackend(t *testing.T) {
 }
 
 func TestResolvePrintsWarnings(t *testing.T) {
-	path := writeTestConfig(t, `profile "a" {
-  testbe {}
-}`)
+	path := writeTestConfig(t, `profiles:
+  a:
+    backend: testbe
+`)
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
