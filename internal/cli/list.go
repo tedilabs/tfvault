@@ -12,17 +12,17 @@ import (
 func runList(configPath, profile string, stdout, stderr io.Writer) int {
 	b, err := resolveBackend(configPath, profile, stderr)
 	if err != nil {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: list: %v\n", err)
+		fmt.Fprintf(stderr, "tfvault: list: %v\n", err)
 		return 1
 	}
 	lister, ok := b.(backend.Lister)
 	if !ok {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: list: the %q backend does not support listing\n", b.Name())
+		fmt.Fprintf(stderr, "tfvault: list: the %q backend does not support listing\n", b.Name())
 		return 1
 	}
 	hosts, err := lister.List()
 	if err != nil {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: list: %v\n", err)
+		fmt.Fprintf(stderr, "tfvault: list: %v\n", err)
 		return 1
 	}
 	for _, h := range hosts {

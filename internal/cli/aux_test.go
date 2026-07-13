@@ -106,7 +106,7 @@ func TestVersionOutput(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d", code)
 	}
-	if !strings.Contains(out.String(), "terraform-credentials-tfvault") {
+	if !strings.Contains(out.String(), "tfvault") {
 		t.Errorf("output = %q", out.String())
 	}
 }

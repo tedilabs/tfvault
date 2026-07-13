@@ -14,7 +14,7 @@ import (
 func runProfiles(configPath string, stdout, stderr io.Writer) int {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: %v\n", err)
+		fmt.Fprintf(stderr, "tfvault: %v\n", err)
 		return 1
 	}
 	if cfg == nil {
@@ -24,7 +24,7 @@ func runProfiles(configPath string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	for _, w := range cfg.Warnings {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: warning: %s\n", w)
+		fmt.Fprintf(stderr, "tfvault: warning: %s\n", w)
 	}
 
 	defaultName := cfg.DefaultProfile

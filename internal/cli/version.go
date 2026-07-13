@@ -13,6 +13,6 @@ var (
 )
 
 func runVersion(stdout io.Writer) int {
-	fmt.Fprintf(stdout, "terraform-credentials-tfvault %s (commit %s, built %s)\n", version, commit, date)
+	fmt.Fprintf(stdout, "tfvault %s (commit %s, built %s)\n", version, commit, date)
 	return 0
 }

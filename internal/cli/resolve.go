@@ -31,7 +31,7 @@ func defaultResolveBackend(configPath, profileFlag string, stderr io.Writer) (ba
 	}
 
 	for _, w := range cfg.Warnings {
-		fmt.Fprintf(stderr, "terraform-credentials-tfvault: warning: %s\n", w)
+		fmt.Fprintf(stderr, "tfvault: warning: %s\n", w)
 	}
 
 	name := profileFlag
