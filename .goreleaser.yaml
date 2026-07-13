@@ -28,23 +28,22 @@ archives:
 checksum:
   name_template: checksums.txt
 
-# Publishes Formula/tfvault.rb to the tedilabs/homebrew-tap repository
-# on every release. Requires the HOMEBREW_TAP_TOKEN secret: a
-# fine-grained PAT with Contents read/write on tedilabs/homebrew-tap
-# (the default GITHUB_TOKEN cannot push to another repository).
-brews:
+# Publishes Casks/tfvault.rb to the tedilabs/homebrew-tap repository on
+# every release. Casks are macOS-only; Linux users install via
+# install.sh. Requires the HOMEBREW_TAP_TOKEN secret: a fine-grained
+# PAT with Contents read/write on tedilabs/homebrew-tap (the default
+# GITHUB_TOKEN cannot push to another repository).
+homebrew_casks:
   - name: tfvault
     repository:
       owner: tedilabs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
     homepage: https://github.com/tedilabs/tfvault
     description: Universal Terraform credentials helper with pluggable secret backends
-    license: Apache-2.0
     commit_msg_template: "feat: update {{ .ProjectName }} to {{ .Tag }}"
-    install: |
-      bin.install "tfvault"
+    binaries:
+      - tfvault
     caveats: |
       Link the helper into Terraform's plugin directory:
         tfvault install
@@ -56,8 +55,14 @@ brews:
 
       Verify the setup with:
         tfvault status
-    test: |
-      assert_match version.to_s, shell_output("#{bin}/tfvault version")
+    # The binaries are not signed/notarized; drop the quarantine bit so
+    # Gatekeeper does not block them.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tfvault"]
+          end
 
 changelog:
   use: git
