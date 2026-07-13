@@ -1,0 +1,275 @@
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/tedilabs/tfvault/internal/backend"
+	"github.com/tedilabs/tfvault/internal/config"
+)
+
+// terraformRC is the subset of the Terraform CLI configuration that
+// concerns credentials: the helper registration and any explicit
+// credentials blocks (which take precedence over the helper).
+type terraformRC struct {
+	Path       string
+	HelperName string // "" when no credentials_helper block exists
+	HelperArgs []string
+	CredHosts  []string
+}
+
+// terraformRCPath mirrors Terraform's CLI config lookup on unix:
+// $TF_CLI_CONFIG_FILE, else ~/.terraformrc.
+func terraformRCPath() (string, error) {
+	if p := os.Getenv("TF_CLI_CONFIG_FILE"); p != "" {
+		return p, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".terraformrc"), nil
+}
+
+// parseTerraformRC extracts credentials_helper and credentials blocks.
+// Unrelated blocks and attributes (provider_installation, plugin_cache_dir,
+// ...) are ignored: this is a diagnostic reader, not a validator.
+func parseTerraformRC(src []byte, path string) (*terraformRC, error) {
+	file, diags := hclparse.NewParser().ParseHCL(src, path)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("parsing %s: %w", path, diags)
+	}
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, fmt.Errorf("parsing %s: unexpected body type", path)
+	}
+
+	rc := &terraformRC{Path: path}
+	for _, block := range body.Blocks {
+		switch block.Type {
+		case "credentials_helper":
+			if rc.HelperName != "" || len(block.Labels) != 1 {
+				continue
+			}
+			rc.HelperName = block.Labels[0]
+			if attr, ok := block.Body.Attributes["args"]; ok {
+				val, diags := attr.Expr.Value(nil)
+				if diags.HasErrors() || !val.CanIterateElements() {
+					continue
+				}
+				for _, v := range val.AsValueSlice() {
+					if v.Type() == cty.String && !v.IsNull() {
+						rc.HelperArgs = append(rc.HelperArgs, v.AsString())
+					}
+				}
+			}
+		case "credentials":
+			if len(block.Labels) == 1 {
+				rc.CredHosts = append(rc.CredHosts, block.Labels[0])
+			}
+		}
+	}
+	return rc, nil
+}
+
+// flagValue extracts the value of --<name> or --<name>=<value> from a
+// helper args list.
+func flagValue(args []string, name string) string {
+	for i, a := range args {
+		trimmed := strings.TrimLeft(a, "-")
+		if trimmed == a {
+			continue // not a flag
+		}
+		if trimmed == name && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(trimmed, name+"=") {
+			return strings.TrimPrefix(trimmed, name+"=")
+		}
+	}
+	return ""
+}
+
+// runStatus reports how Terraform will reach tfvault: the plugin
+// symlink, the terraformrc helper registration, and which profile and
+// backend requests will resolve to. Exit code is nonzero when the
+// helper is not fully wired up.
+func runStatus(configPath, profileFlag string, stdout, stderr io.Writer) int {
+	healthy := true
+
+	// Plugin symlink.
+	fmt.Fprintln(stdout, "Plugin link:")
+	dir, err := pluginDir()
+	if err != nil {
+		fmt.Fprintf(stderr, "tfvault: status: %v\n", err)
+		return 1
+	}
+	link := filepath.Join(dir, pluginBinary)
+	healthy = reportLink(stdout, link) && healthy
+
+	// Terraform CLI config.
+	fmt.Fprintln(stdout, "\nTerraform CLI config:")
+	rc := &terraformRC{}
+	rcPath, err := terraformRCPath()
+	if err != nil {
+		fmt.Fprintf(stderr, "tfvault: status: %v\n", err)
+		return 1
+	}
+	src, err := os.ReadFile(rcPath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		fmt.Fprintf(stdout, "  missing: %s does not exist\n", rcPath)
+		healthy = false
+	case err != nil:
+		fmt.Fprintf(stdout, "  error: %v\n", err)
+		healthy = false
+	default:
+		rc, err = parseTerraformRC(src, rcPath)
+		if err != nil {
+			fmt.Fprintf(stdout, "  error: %v\n", err)
+			healthy = false
+			rc = &terraformRC{}
+			break
+		}
+		switch {
+		case rc.HelperName == "":
+			fmt.Fprintf(stdout, "  warning: %s has no credentials_helper block\n", rcPath)
+			healthy = false
+		case rc.HelperName != "tfvault":
+			fmt.Fprintf(stdout, "  warning: %s registers credentials_helper %q, not \"tfvault\"\n", rcPath, rc.HelperName)
+			healthy = false
+		default:
+			fmt.Fprintf(stdout, "  ok: %s registers credentials_helper \"tfvault\" (args: %q)\n", rcPath, rc.HelperArgs)
+		}
+		for _, h := range rc.CredHosts {
+			fmt.Fprintf(stdout, "  note: credentials %q block takes precedence over the helper for that host\n", h)
+		}
+	}
+
+	// Profile and backend resolution, following the same precedence as
+	// a real helper invocation driven by this terraformrc.
+	fmt.Fprintln(stdout, "\nProfile:")
+	if configPath == "" {
+		configPath = flagValue(rc.HelperArgs, "config")
+	}
+	profile := profileFlag
+	source := "--profile flag"
+	if profile == "" {
+		profile = flagValue(rc.HelperArgs, "profile")
+		source = "terraformrc helper args"
+	}
+
+	b := reportProfile(stdout, configPath, profile, source, stderr)
+	if b == nil {
+		return 1
+	}
+
+	// Stored hosts, when the backend can enumerate them.
+	fmt.Fprintln(stdout, "\nHosts with stored credentials:")
+	if lister, ok := b.(backend.Lister); ok {
+		hosts, err := lister.List()
+		switch {
+		case err != nil:
+			fmt.Fprintf(stdout, "  error: %v\n", err)
+		case len(hosts) == 0:
+			fmt.Fprintln(stdout, "  (none)")
+		default:
+			for _, h := range hosts {
+				fmt.Fprintf(stdout, "  %s\n", h)
+			}
+		}
+	} else {
+		fmt.Fprintf(stdout, "  (the %q backend cannot enumerate entries)\n", b.Name())
+	}
+
+	if !healthy {
+		return 1
+	}
+	return 0
+}
+
+// reportLink prints the state of the plugin symlink and returns whether
+// it is usable.
+func reportLink(stdout io.Writer, link string) bool {
+	info, err := os.Lstat(link)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		fmt.Fprintf(stdout, "  missing: %s — run \"tfvault install\"\n", link)
+		return false
+	case err != nil:
+		fmt.Fprintf(stdout, "  error: %v\n", err)
+		return false
+	case info.Mode()&fs.ModeSymlink == 0:
+		fmt.Fprintf(stdout, "  warning: %s is not a symlink (an old install?)\n", link)
+		return true // a real binary there still works for Terraform
+	}
+	target, err := os.Readlink(link)
+	if err != nil {
+		fmt.Fprintf(stdout, "  error: %v\n", err)
+		return false
+	}
+	if _, err := os.Stat(link); err != nil {
+		fmt.Fprintf(stdout, "  broken: %s -> %s (target missing) — run \"tfvault install\"\n", link, target)
+		return false
+	}
+	fmt.Fprintf(stdout, "  ok: %s -> %s\n", link, target)
+	return true
+}
+
+// reportProfile prints the resolved profile and backend and returns the
+// instantiated backend, or nil when resolution fails.
+func reportProfile(stdout io.Writer, configPath, profile, source string, stderr io.Writer) backend.Backend {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(stdout, "  error: %v\n", err)
+		return nil
+	}
+
+	if cfg == nil {
+		path, _ := config.ResolvePath(configPath)
+		if profile != "" && profile != "default" {
+			fmt.Fprintf(stdout, "  error: profile %q requested but no config file found at %s\n", profile, path)
+			return nil
+		}
+		fmt.Fprintf(stdout, "  default (zero-config: no file at %s)\n", path)
+		fmt.Fprintf(stdout, "  backend: %s\n", zeroConfigBackend)
+		b, err := backend.New(zeroConfigBackend, nil)
+		if err != nil {
+			fmt.Fprintf(stdout, "  error: %v\n", err)
+			return nil
+		}
+		return b
+	}
+
+	for _, w := range cfg.Warnings {
+		fmt.Fprintf(stderr, "tfvault: warning: %s\n", w)
+	}
+	if profile == "" {
+		profile, source = cfg.DefaultProfile, "config default_profile"
+	}
+	if profile == "" {
+		profile, source = "default", "fallback"
+	}
+	p, ok := cfg.Profiles[profile]
+	if !ok {
+		fmt.Fprintf(stdout, "  error: profile %q not found in %s (available: %v)\n", profile, cfg.Path, cfg.ProfileNames())
+		return nil
+	}
+	fmt.Fprintf(stdout, "  %s (from %s, config %s)\n", profile, source, cfg.Path)
+	fmt.Fprintf(stdout, "  backend: %s%s\n", p.Backend, formatOptions(p.Options))
+	b, err := backend.New(p.Backend, p.Options)
+	if err != nil {
+		fmt.Fprintf(stdout, "  error: %v\n", err)
+		return nil
+	}
+	return b
+}
