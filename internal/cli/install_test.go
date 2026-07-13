@@ -27,6 +27,23 @@ func TestInstallLinkCreate(t *testing.T) {
 	}
 }
 
+func TestInstallLinkResolvesRelativeExecutablePath(t *testing.T) {
+	work := t.TempDir()
+	t.Chdir(work)
+
+	dir := t.TempDir()
+	if _, err := installLink("./tfvault", dir); err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(filepath.Join(dir, pluginBinary))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(work, "tfvault"); target != want {
+		t.Errorf("target = %q, want %q", target, want)
+	}
+}
+
 func TestInstallLinkIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	exe := "/usr/local/bin/tfvault"

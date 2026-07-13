@@ -51,6 +51,12 @@ func runInstall(stdout, stderr io.Writer) int {
 // existing symlink pointing elsewhere is updated; a regular file is
 // never clobbered (it is likely a binary copied by an old installer).
 func installLink(exe, dir string) (string, error) {
+	// os.Executable does not guarantee an absolute path; a relative
+	// target would resolve against the plugins directory and break.
+	exe, err := filepath.Abs(exe)
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
