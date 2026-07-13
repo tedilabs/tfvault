@@ -75,4 +75,6 @@ To finish setup, add this to your ~/.terraformrc
   credentials_helper "tfvault" {
     args = []
   }
+
+Then check everything with: tfvault status
 EOF

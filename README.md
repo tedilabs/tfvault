@@ -55,6 +55,9 @@ terraform login app.terraform.io    # store a token
 terraform logout app.terraform.io   # forget it
 ```
 
+`tfvault status` shows whether the plugin link and `.terraformrc` are
+wired up and which profile and backend requests resolve to.
+
 The helper works for any Terraform-native service hostname, not just
 Terraform Cloud.
 
@@ -178,10 +181,16 @@ helper. The env backend is useful for the *prefix override* case
 
 ```sh
 tfvault install                     # symlink the helper into ~/.terraform.d/plugins
+tfvault status                      # plugin link, terraformrc and profile resolution
 tfvault profiles                    # list profiles, default marked with *
 tfvault --profile customer-b list   # hostnames with stored credentials
 tfvault version
 ```
+
+`status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
+`~/.terraformrc`) and reports the `credentials_helper` registration,
+explicit `credentials` blocks that bypass the helper, and the profile,
+backend and stored hostnames the current setup resolves to.
 
 `list` is supported by the `pass` and `env` backends; OS keyrings cannot
 enumerate entries. Token values are never printed by any auxiliary
