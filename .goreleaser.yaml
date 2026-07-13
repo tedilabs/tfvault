@@ -1,0 +1,37 @@
+version: 2
+
+project_name: tfvault
+
+builds:
+  - id: tfvault
+    main: ./cmd/terraform-credentials-tfvault
+    binary: terraform-credentials-tfvault
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/tedilabs/tfvault/internal/cli.version={{ .Version }}
+      - -X github.com/tedilabs/tfvault/internal/cli.commit={{ .ShortCommit }}
+      - -X github.com/tedilabs/tfvault/internal/cli.date={{ .Date }}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
