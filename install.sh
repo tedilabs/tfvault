@@ -1,7 +1,7 @@
 #!/bin/sh
-# Installs the tfvault binary into Terraform's plugin directory
-# (~/.terraform.d/plugins) under the terraform-credentials-tfvault
-# name Terraform discovers helpers by. No sudo required.
+# Installs the tfvault binary into ~/.local/bin and links it into
+# Terraform's plugin directory (~/.terraform.d/plugins) via
+# `tfvault install`. No sudo required.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/tedilabs/tfvault/main/install.sh | sh
@@ -10,8 +10,7 @@ set -eu
 
 REPO="tedilabs/tfvault"
 BINARY="tfvault"
-HELPER="terraform-credentials-tfvault"
-PLUGIN_DIR="${HOME}/.terraform.d/plugins"
+BIN_DIR="${HOME}/.local/bin"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
@@ -57,10 +56,17 @@ curl -fsSL -o "${tmp}/checksums.txt" "${base}/checksums.txt"
 echo "Checksum verified."
 
 tar -xzf "${tmp}/${asset}" -C "$tmp"
-mkdir -p "$PLUGIN_DIR"
-install -m 0755 "${tmp}/${BINARY}" "${PLUGIN_DIR}/${HELPER}"
+mkdir -p "$BIN_DIR"
+install -m 0755 "${tmp}/${BINARY}" "${BIN_DIR}/${BINARY}"
+echo "Installed ${BINARY} ${version} to ${BIN_DIR}"
 
-echo "Installed ${HELPER} ${version} to ${PLUGIN_DIR}"
+"${BIN_DIR}/${BINARY}" install
+
+case ":${PATH}:" in
+  *":${BIN_DIR}:"*) ;;
+  *) echo "note: ${BIN_DIR} is not in your PATH; add it to use the tfvault CLI directly" ;;
+esac
+
 cat <<'EOF'
 
 To finish setup, add this to your ~/.terraformrc
