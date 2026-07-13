@@ -23,7 +23,7 @@ Auxiliary commands:
 
 Flags:
   --profile <name>    profile to use (default: config default_profile, else "default")
-  --config <path>     config file path (default: $TFVAULT_CONFIG, else ~/.config/tfvault/config.hcl)
+  --config <path>     config file path (default: $TFVAULT_CONFIG, else ~/.config/tfvault/config.yaml)
 `
 
 // resolveBackend resolves the backend for a profile. It is a variable so

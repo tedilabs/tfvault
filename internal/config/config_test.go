@@ -9,7 +9,7 @@ import (
 
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.hcl")
+	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -18,27 +18,23 @@ func writeConfig(t *testing.T, content string) string {
 
 func TestLoadFullConfig(t *testing.T) {
 	path := writeConfig(t, `
-default_profile = "personal"
+default_profile: personal
 
-profile "personal" {
-  keyring {
-    service = "tfvault-personal"
-  }
-}
-
-profile "customer-a" {
-  pass {
-    binary    = "gopass"
-    prefix    = "customers/a/terraform"
-    store_dir = "~/.password-store-customer-a"
-  }
-}
-
-profile "ci" {
-  env {
-    prefix = "CI_TF_TOKEN_"
-  }
-}
+profiles:
+  personal:
+    backend: keyring
+    options:
+      service: tfvault-personal
+  customer-a:
+    backend: pass
+    options:
+      binary: gopass
+      prefix: customers/a/terraform
+      store_dir: ~/.password-store-customer-a
+  ci:
+    backend: env
+    options:
+      prefix: CI_TF_TOKEN_
 `)
 	cfg, err := Load(path)
 	if err != nil {
@@ -63,12 +59,22 @@ profile "ci" {
 }
 
 func TestLoadMissingFileReturnsNil(t *testing.T) {
-	cfg, err := Load(filepath.Join(t.TempDir(), "nope.hcl"))
+	cfg, err := Load(filepath.Join(t.TempDir(), "nope.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg != nil {
 		t.Fatalf("cfg = %+v, want nil for missing file", cfg)
+	}
+}
+
+func TestLoadEmptyFile(t *testing.T) {
+	cfg, err := Load(writeConfig(t, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg == nil || len(cfg.Profiles) != 0 {
+		t.Fatalf("cfg = %+v, want empty config", cfg)
 	}
 }
 
@@ -80,71 +86,70 @@ func TestLoadErrors(t *testing.T) {
 	}{
 		{
 			"duplicate profile",
-			`profile "a" {
-  keyring {}
-}
-profile "a" {
-  keyring {}
-}`,
-			"duplicate profile",
+			`profiles:
+  a:
+    backend: keyring
+  a:
+    backend: keyring`,
+			"already defined",
 		},
 		{
-			"no backend block",
-			`profile "a" {}`,
-			"exactly one backend block",
+			"no backend",
+			`profiles:
+  a:
+    options:
+      service: x`,
+			"must specify a backend",
 		},
 		{
-			"two backend blocks",
-			`profile "a" {
-  keyring {}
-  env {}
-}`,
-			"exactly one backend block",
+			"empty profile",
+			`profiles:
+  a: {}`,
+			"must specify a backend",
 		},
 		{
-			"attribute in profile",
-			`profile "a" { service = "x" }`,
-			"backend options belong inside a backend block",
+			"option outside options map",
+			`profiles:
+  a:
+    backend: keyring
+    service: x`,
+			"not found",
 		},
 		{
-			"unsupported top-level attribute",
-			`something = "x"`,
-			"unsupported attribute",
-		},
-		{
-			"unsupported top-level block",
-			`credentials "x" {}`,
-			"unsupported block type",
+			"unsupported top-level key",
+			`something: x`,
+			"not found",
 		},
 		{
 			"default_profile without matching profile",
-			`default_profile = "missing"
-profile "a" {
-  keyring {}
-}`,
+			`default_profile: missing
+profiles:
+  a:
+    backend: keyring`,
 			"does not match any profile",
 		},
 		{
-			"nested block in backend",
-			`profile "a" {
-  keyring {
-    nested {}
-  }
-}`,
-			"must not contain nested blocks",
+			"nested value in options",
+			`profiles:
+  a:
+    backend: keyring
+    options:
+      service:
+        nested: x`,
+			"cannot unmarshal",
 		},
 		{
 			"non-string option",
-			`profile "a" {
-  keyring {
-    service = []
-  }
-}`,
-			"must be a string",
+			`profiles:
+  a:
+    backend: keyring
+    options:
+      service: []`,
+			"cannot unmarshal",
 		},
 		{
-			"invalid HCL",
-			`profile "a" {`,
+			"invalid YAML",
+			`profiles: [`,
 			"parsing config",
 		},
 	}
@@ -162,9 +167,10 @@ profile "a" {
 }
 
 func TestPermissionWarning(t *testing.T) {
-	path := writeConfig(t, `profile "a" {
-  keyring {}
-}`)
+	path := writeConfig(t, `profiles:
+  a:
+    backend: keyring
+`)
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -178,24 +184,24 @@ func TestPermissionWarning(t *testing.T) {
 }
 
 func TestResolvePathPrecedence(t *testing.T) {
-	t.Setenv("TFVAULT_CONFIG", "/from/env.hcl")
+	t.Setenv("TFVAULT_CONFIG", "/from/env.yaml")
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 
-	if got, _ := ResolvePath("/from/flag.hcl"); got != "/from/flag.hcl" {
+	if got, _ := ResolvePath("/from/flag.yaml"); got != "/from/flag.yaml" {
 		t.Errorf("flag precedence: got %q", got)
 	}
-	if got, _ := ResolvePath(""); got != "/from/env.hcl" {
+	if got, _ := ResolvePath(""); got != "/from/env.yaml" {
 		t.Errorf("env precedence: got %q", got)
 	}
 
 	t.Setenv("TFVAULT_CONFIG", "")
-	if got, _ := ResolvePath(""); got != filepath.Join("/xdg", "tfvault", "config.hcl") {
+	if got, _ := ResolvePath(""); got != filepath.Join("/xdg", "tfvault", "config.yaml") {
 		t.Errorf("xdg: got %q", got)
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home, _ := os.UserHomeDir()
-	if got, _ := ResolvePath(""); got != filepath.Join(home, ".config", "tfvault", "config.hcl") {
+	if got, _ := ResolvePath(""); got != filepath.Join(home, ".config", "tfvault", "config.yaml") {
 		t.Errorf("home fallback: got %q", got)
 	}
 }
