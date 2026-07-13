@@ -25,14 +25,16 @@ Supported platforms: macOS and Linux, amd64 and arm64.
 curl -fsSL https://raw.githubusercontent.com/tedilabs/tfvault/main/install.sh | sh
 ```
 
-Or manually: download a release archive, verify `checksums.txt`, and put
-the `tfvault` binary into `~/.terraform.d/plugins/` under the name
+The script installs the `tfvault` binary into `~/.local/bin` and runs
+`tfvault install`, which symlinks it into `~/.terraform.d/plugins/` as
 `terraform-credentials-tfvault` — the name Terraform discovers helpers
-by. From source:
+by. Or manually: download a release archive, verify `checksums.txt`,
+put `tfvault` on your PATH and run `tfvault install`. From source:
 
 ```sh
 go build ./cmd/tfvault
-install -m 0755 tfvault ~/.terraform.d/plugins/terraform-credentials-tfvault
+install -m 0755 tfvault ~/.local/bin/
+tfvault install
 ```
 
 ## Quick start
@@ -52,6 +54,9 @@ the service name `tfvault`:
 terraform login app.terraform.io    # store a token
 terraform logout app.terraform.io   # forget it
 ```
+
+`tfvault status` shows whether the plugin link and `.terraformrc` are
+wired up and which profile and backend requests resolve to.
 
 The helper works for any Terraform-native service hostname, not just
 Terraform Cloud.
@@ -175,10 +180,17 @@ helper. The env backend is useful for the *prefix override* case
 ## Auxiliary commands
 
 ```sh
+tfvault install                     # symlink the helper into ~/.terraform.d/plugins
+tfvault status                      # plugin link, terraformrc and profile resolution
 tfvault profiles                    # list profiles, default marked with *
 tfvault --profile customer-b list   # hostnames with stored credentials
 tfvault version
 ```
+
+`status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
+`~/.terraformrc`) and reports the `credentials_helper` registration,
+explicit `credentials` blocks that bypass the helper, and the profile,
+backend and stored hostnames the current setup resolves to.
 
 `list` is supported by the `pass` and `env` backends; OS keyrings cannot
 enumerate entries. Token values are never printed by any auxiliary
