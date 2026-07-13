@@ -21,13 +21,13 @@ Supported platforms: macOS and Linux, amd64 and arm64.
 
 ## Install
 
-Homebrew (macOS):
+Homebrew (macOS and Linux):
 
 ```sh
-brew install --cask tedilabs/tap/tfvault
+brew install tedilabs/tap/tfvault
 ```
 
-Or the install script (macOS and Linux):
+Or the install script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tedilabs/tfvault/main/install.sh | sh

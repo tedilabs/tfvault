@@ -28,41 +28,10 @@ archives:
 checksum:
   name_template: checksums.txt
 
-# Publishes Casks/tfvault.rb to the tedilabs/homebrew-tap repository on
-# every release. Casks are macOS-only; Linux users install via
-# install.sh. Requires the HOMEBREW_TAP_TOKEN secret: a fine-grained
-# PAT with Contents read/write on tedilabs/homebrew-tap (the default
-# GITHUB_TOKEN cannot push to another repository).
-homebrew_casks:
-  - name: tfvault
-    repository:
-      owner: tedilabs
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: https://github.com/tedilabs/tfvault
-    description: Universal Terraform credentials helper with pluggable secret backends
-    commit_msg_template: "feat: update {{ .ProjectName }} to {{ .Tag }}"
-    binaries:
-      - tfvault
-    caveats: |
-      Link the helper into Terraform's plugin directory:
-        tfvault install
-
-      Then add to your ~/.terraformrc:
-        credentials_helper "tfvault" {
-          args = []
-        }
-
-      Verify the setup with:
-        tfvault status
-    # The binaries are not signed/notarized; drop the quarantine bit so
-    # Gatekeeper does not block them.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tfvault"]
-          end
+# The Homebrew formula (macOS + Linux) is rendered and pushed to
+# tedilabs/homebrew-tap by .github/scripts/publish-formula.sh in the
+# release workflow. goreleaser's own brews section is deprecated
+# (removed in v2.16) and homebrew_casks is macOS-only, so neither fits.
 
 changelog:
   use: git
