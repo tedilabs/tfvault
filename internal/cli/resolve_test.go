@@ -84,6 +84,20 @@ func TestResolveProfileNotFound(t *testing.T) {
 	}
 }
 
+func TestResolveZeroConfigUsesKeyring(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "nope.hcl")
+	var stderr bytes.Buffer
+	for _, profile := range []string{"", "default"} {
+		b, err := defaultResolveBackend(missing, profile, &stderr)
+		if err != nil {
+			t.Fatalf("profile %q: %v", profile, err)
+		}
+		if b.Name() != "keyring" {
+			t.Errorf("profile %q: backend = %q, want keyring", profile, b.Name())
+		}
+	}
+}
+
 func TestResolveNamedProfileWithoutConfigFails(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "nope.hcl")
 	var stderr bytes.Buffer
