@@ -17,6 +17,8 @@ Terraform credentials helper commands (invoked by Terraform):
   forget <hostname>   remove stored credentials for hostname
 
 Auxiliary commands:
+  profiles            list configured profiles
+  list                list hostnames with stored credentials (never tokens)
   version             print version information
 
 Flags:
@@ -50,6 +52,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch verb {
 	case "get", "store", "forget":
 		return runProtocol(verb, verbArgs, *configPath, *profile, stdin, stdout, stderr)
+	case "profiles":
+		return runProfiles(*configPath, stdout, stderr)
+	case "list":
+		return runList(*configPath, *profile, stdout, stderr)
 	case "version":
 		return runVersion(stdout)
 	default:
