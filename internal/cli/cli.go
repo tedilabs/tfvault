@@ -4,12 +4,9 @@
 package cli
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-
-	"github.com/tedilabs/tfvault/internal/backend"
 )
 
 const usage = `Usage: terraform-credentials-tfvault [flags] <command> [hostname]
@@ -29,9 +26,7 @@ Flags:
 
 // resolveBackend resolves the backend for a profile. It is a variable so
 // tests can substitute a fake backend.
-var resolveBackend = func(configPath, profile string) (backend.Backend, error) {
-	return nil, errors.New("no backend configured")
-}
+var resolveBackend = defaultResolveBackend
 
 // Run executes the CLI and returns the process exit code. All I/O goes
 // through the provided streams so the full program is testable.

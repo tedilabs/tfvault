@@ -28,7 +28,7 @@ func runProtocol(verb string, args []string, configPath, profile string, stdin i
 	if err != nil {
 		return fail(err)
 	}
-	b, err := resolveBackend(configPath, profile)
+	b, err := resolveBackend(configPath, profile, stderr)
 	if err != nil {
 		return fail(err)
 	}

@@ -30,7 +30,7 @@ func (t *trackingReader) fullyConsumed() bool {
 func run(t *testing.T, b backend.Backend, stdin string, args ...string) (int, string, string, *trackingReader) {
 	t.Helper()
 	orig := resolveBackend
-	resolveBackend = func(configPath, profile string) (backend.Backend, error) {
+	resolveBackend = func(configPath, profile string, stderr io.Writer) (backend.Backend, error) {
 		if b == nil {
 			return nil, errors.New("backend resolution failed")
 		}
