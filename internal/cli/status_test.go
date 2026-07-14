@@ -128,7 +128,7 @@ credentials "bypass.example.com" {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := installLink(exe, filepath.Join(home, ".terraform.d", "plugins")); err != nil {
+	if _, err := installLink(exe, filepath.Join(home, ".terraform.d", "plugins"), false); err != nil {
 		t.Fatal(err)
 	}
 	out.Reset()

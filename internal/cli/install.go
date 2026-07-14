@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -26,7 +27,20 @@ func pluginDir() (string, error) {
 
 // runInstall symlinks the running executable into Terraform's plugin
 // directory under the terraform-credentials-tfvault name.
-func runInstall(stdout, stderr io.Writer) int {
+func runInstall(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("tfvault install", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var force bool
+	flags.BoolVar(&force, "f", false, "replace whatever exists at the link path")
+	flags.BoolVar(&force, "force", false, "replace whatever exists at the link path")
+	if err := flags.Parse(args); err != nil {
+		return 1
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "tfvault: install: unexpected argument %q\n", flags.Arg(0))
+		return 1
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: install: %v\n", err)
@@ -37,7 +51,7 @@ func runInstall(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "tfvault: install: %v\n", err)
 		return 1
 	}
-	msg, err := installLink(exe, dir)
+	msg, err := installLink(exe, dir, force)
 	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: install: %v\n", err)
 		return 1
@@ -48,9 +62,10 @@ func runInstall(stdout, stderr io.Writer) int {
 }
 
 // installLink creates dir/terraform-credentials-tfvault -> exe. An
-// existing symlink pointing elsewhere is updated; a regular file is
-// never clobbered (it is likely a binary copied by an old installer).
-func installLink(exe, dir string) (string, error) {
+// existing symlink pointing elsewhere is updated. Anything that is not
+// a symlink (e.g. a binary copied by an old installer) is replaced
+// only when force is set.
+func installLink(exe, dir string, force bool) (string, error) {
 	// os.Executable does not guarantee an absolute path; a relative
 	// target would resolve against the plugins directory and break.
 	exe, err := filepath.Abs(exe)
@@ -71,7 +86,13 @@ func installLink(exe, dir string) (string, error) {
 	case err != nil:
 		return "", err
 	case info.Mode()&fs.ModeSymlink == 0:
-		return "", fmt.Errorf("%s exists and is not a symlink (an old install?); remove it first, then re-run tfvault install", link)
+		if !force {
+			return "", fmt.Errorf("%s exists and is not a symlink (an old install?); re-run with --force to replace it", link)
+		}
+		if err := replaceLink(exe, link); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Replaced %s -> %s (was not a symlink)", link, exe), nil
 	}
 	target, err := os.Readlink(link)
 	if err != nil {
@@ -80,11 +101,26 @@ func installLink(exe, dir string) (string, error) {
 	if target == exe {
 		return fmt.Sprintf("Already installed: %s -> %s", link, exe), nil
 	}
-	if err := os.Remove(link); err != nil {
-		return "", err
-	}
-	if err := os.Symlink(exe, link); err != nil {
+	if err := replaceLink(exe, link); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("Updated %s -> %s (was %s)", link, exe, target), nil
+}
+
+// replaceLink atomically replaces link with a symlink to exe by
+// renaming a temporary symlink over it, so a failure never leaves the
+// plugin without any link at all.
+func replaceLink(exe, link string) error {
+	tmp := link + ".tmp"
+	if err := os.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Symlink(exe, tmp); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, link); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }

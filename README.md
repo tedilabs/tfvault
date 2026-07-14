@@ -195,6 +195,10 @@ tfvault --profile customer-b list   # hostnames with stored credentials
 tfvault version
 ```
 
+`install` refuses to overwrite anything at the link path that is not a
+symlink (e.g. a binary copied by an old installer); pass `-f`/`--force`
+to replace it.
+
 `status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
 `~/.terraformrc`) and reports the `credentials_helper` registration,
 explicit `credentials` blocks that bypass the helper, and the profile,
