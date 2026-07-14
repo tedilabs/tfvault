@@ -17,7 +17,8 @@ Terraform credentials helper commands (invoked by Terraform):
   forget <hostname>   remove stored credentials for hostname
 
 Auxiliary commands:
-  install             symlink the helper into ~/.terraform.d/plugins
+  install [-f]        symlink the helper into ~/.terraform.d/plugins
+                      (-f/--force replaces an existing non-symlink file)
   status              show plugin link, terraformrc and profile resolution
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)
@@ -55,7 +56,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "get", "store", "forget":
 		return runProtocol(verb, verbArgs, *configPath, *profile, stdin, stdout, stderr)
 	case "install":
-		return runInstall(stdout, stderr)
+		return runInstall(verbArgs, stdout, stderr)
 	case "status":
 		return runStatus(*configPath, *profile, stdout, stderr)
 	case "profiles":
