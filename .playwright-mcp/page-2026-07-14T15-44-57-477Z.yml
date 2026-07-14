@@ -1,0 +1,25 @@
+- generic [ref=f12e2]:
+  - link "DuckDuckGo" [ref=f12e3] [cursor=pointer]:
+    - /url: /lite/
+  - iframe [ref=f12e4]:
+    
+  - generic [ref=f12e5]:
+    - generic [ref=f12e6]:
+      - generic [ref=f12e7]: Unfortunately, bots use DuckDuckGo too.
+      - generic [ref=f12e8]: Please complete the following challenge to confirm this search was made by a human.
+      - generic [ref=f12e9]: "Select all squares containing a duck:"
+      - generic [ref=f12e11]:
+        - generic [ref=f12e12]: █
+        - generic [ref=f12e15]: █
+        - generic [ref=f12e18]: █
+        - generic [ref=f12e21]: █
+        - generic [ref=f12e24]: █
+        - generic [ref=f12e27]: █
+        - generic [ref=f12e30]: █
+        - generic [ref=f12e33]: █
+        - generic [ref=f12e36]: █
+      - generic [ref=f12e39]:
+        - button "Submit" [ref=f12e40] [cursor=pointer]
+        - paragraph
+        - text: Images not loading?
+    - paragraph
