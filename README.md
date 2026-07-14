@@ -1,7 +1,4 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-banner-dark.png">
-  <img alt="tfvault — Universal Terraform credentials helper" src="docs/assets/readme-banner-light.png">
-</picture>
+![tfvault — Universal Terraform credentials helper](docs/assets/readme-banner-light.png)
 
 # tfvault
 
