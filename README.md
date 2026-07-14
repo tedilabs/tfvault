@@ -29,6 +29,18 @@ Homebrew (macOS and Linux):
 brew install tedilabs/tap/tfvault
 ```
 
+Or [mise](https://mise.jdx.dev), via either the github or the aqua
+backend (both resolve the same release archives; the aqua backend adds
+checksum verification through the [aqua registry](https://github.com/aquaproj/aqua-registry)):
+
+```sh
+mise use -g github:tedilabs/tfvault
+# or
+mise use -g aqua:tedilabs/tfvault
+
+tfvault install   # link the helper into ~/.terraform.d/plugins
+```
+
 Or the install script:
 
 ```sh
