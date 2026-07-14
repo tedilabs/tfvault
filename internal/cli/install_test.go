@@ -133,6 +133,12 @@ func TestInstallForceFlagParsing(t *testing.T) {
 	}
 
 	for _, flag := range []string{"-f", "--force"} {
+		// Remove any symlink left by the previous iteration first:
+		// WriteFile would follow it and try to write the running test
+		// executable itself (ETXTBSY on Linux).
+		if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(link, []byte("old binary"), 0o755); err != nil {
 			t.Fatal(err)
 		}
