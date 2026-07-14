@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-banner-dark.png">
+  <img alt="tfvault — Universal Terraform credentials helper" src="docs/assets/readme-banner-light.png">
+</picture>
+
 # tfvault
 
 A universal [Terraform credentials helper](https://developer.hashicorp.com/terraform/internals/credentials-helpers)
