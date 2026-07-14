@@ -28,6 +28,44 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Publishes Formula/tfvault.rb to the tedilabs/homebrew-tap repository
+# on every release. Requires the HOMEBREW_TAP_TOKEN secret: a
+# fine-grained PAT with Contents read/write on tedilabs/homebrew-tap
+# (the default GITHUB_TOKEN cannot push to another repository).
+#
+# brews is deprecated (goreleaser.com/deprecations#brews) but kept on
+# purpose: the replacement homebrew_casks is macOS-only and this
+# project supports Linuxbrew. CI's goreleaser check tolerates exit
+# code 2 (valid config, deprecated properties) for this reason. If a
+# future goreleaser release actually removes brews, pin the goreleaser
+# version in the workflows or move formula publishing into a script.
+brews:
+  - name: tfvault
+    repository:
+      owner: tedilabs
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/tedilabs/tfvault
+    description: Universal Terraform credentials helper with pluggable secret backends
+    license: Apache-2.0
+    commit_msg_template: "feat: update {{ .ProjectName }} to {{ .Tag }}"
+    install: |
+      bin.install "tfvault"
+    caveats: |
+      Link the helper into Terraform's plugin directory:
+        tfvault install
+
+      Then add to your ~/.terraformrc:
+        credentials_helper "tfvault" {
+          args = []
+        }
+
+      Verify the setup with:
+        tfvault status
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/tfvault version")
+
 changelog:
   use: git
   filters:
