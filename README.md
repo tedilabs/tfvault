@@ -1,3 +1,5 @@
+![tfvault — Universal Terraform credentials helper](docs/assets/readme-banner-light.png)
+
 # tfvault
 
 A universal [Terraform credentials helper](https://developer.hashicorp.com/terraform/internals/credentials-helpers)
