@@ -122,6 +122,29 @@ func TestInstallLinkForceReplacesRegularFile(t *testing.T) {
 	}
 }
 
+func TestInstallLinkForceSurvivesStaleTmp(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, pluginBinary)
+	if err := os.WriteFile(link, []byte("old binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A leftover .tmp from a crashed earlier run must not break the
+	// atomic replacement.
+	if err := os.WriteFile(link+".tmp", []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := installLink("/usr/local/bin/tfvault", dir, true); err != nil {
+		t.Fatal(err)
+	}
+	if target, _ := os.Readlink(link); target != "/usr/local/bin/tfvault" {
+		t.Errorf("target = %q", target)
+	}
+	if _, err := os.Lstat(link + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf(".tmp left behind: %v", err)
+	}
+}
+
 // TestInstallForceFlagParsing drives the full command: -f and --force
 // are accepted, unknown flags and stray arguments fail.
 func TestInstallForceFlagParsing(t *testing.T) {

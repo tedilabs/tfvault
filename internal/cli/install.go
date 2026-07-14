@@ -89,10 +89,7 @@ func installLink(exe, dir string, force bool) (string, error) {
 		if !force {
 			return "", fmt.Errorf("%s exists and is not a symlink (an old install?); re-run with --force to replace it", link)
 		}
-		if err := os.Remove(link); err != nil {
-			return "", err
-		}
-		if err := os.Symlink(exe, link); err != nil {
+		if err := replaceLink(exe, link); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("Replaced %s -> %s (was not a symlink)", link, exe), nil
@@ -104,11 +101,26 @@ func installLink(exe, dir string, force bool) (string, error) {
 	if target == exe {
 		return fmt.Sprintf("Already installed: %s -> %s", link, exe), nil
 	}
-	if err := os.Remove(link); err != nil {
-		return "", err
-	}
-	if err := os.Symlink(exe, link); err != nil {
+	if err := replaceLink(exe, link); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("Updated %s -> %s (was %s)", link, exe, target), nil
+}
+
+// replaceLink atomically replaces link with a symlink to exe by
+// renaming a temporary symlink over it, so a failure never leaves the
+// plugin without any link at all.
+func replaceLink(exe, link string) error {
+	tmp := link + ".tmp"
+	if err := os.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Symlink(exe, tmp); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, link); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
