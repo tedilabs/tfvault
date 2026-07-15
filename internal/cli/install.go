@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // pluginBinary is the name Terraform discovers credentials helpers by:
@@ -27,7 +28,7 @@ func pluginDir() (string, error) {
 
 // runInstall symlinks the running executable into Terraform's plugin
 // directory under the terraform-credentials-tfvault name.
-func runInstall(args []string, stdout, stderr io.Writer) int {
+func runInstall(args []string, pal *palette, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("tfvault install", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var force bool
@@ -56,8 +57,13 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "tfvault: install: %v\n", err)
 		return 1
 	}
+	// Color the leading action word (Created/Updated/Replaced/Already
+	// installed) so the outcome reads at a glance.
+	if word, rest, found := strings.Cut(msg, " "); found {
+		msg = pal.ok(word) + " " + rest
+	}
 	fmt.Fprintln(stdout, msg)
-	fmt.Fprintln(stdout, `Run "tfvault status" to verify your Terraform CLI setup.`)
+	fmt.Fprintln(stdout, pal.dim(`Run "tfvault status" to verify your Terraform CLI setup.`))
 	return 0
 }
 

@@ -27,6 +27,7 @@ Auxiliary commands:
 Flags:
   --profile <name>    profile to use (default: config default_profile, else "default")
   --config <path>     config file path (default: $TFVAULT_CONFIG, else ~/.config/tfvault/config.yaml)
+  --no-color          disable colored output (also: NO_COLOR env, "color: false" in config)
 `
 
 // resolveBackend resolves the backend for a profile. It is a variable so
@@ -41,6 +42,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
 	profile := fs.String("profile", "", "profile name")
 	configPath := fs.String("config", "", "config file path")
+	noColor := fs.Bool("no-color", false, "disable colored output")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -52,15 +54,19 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	verb, verbArgs := rest[0], rest[1:]
 
+	// Color applies to auxiliary command output only; protocol and list
+	// output are consumed by other programs and stay plain.
+	pal := newPalette(*noColor, *configPath, stdout)
+
 	switch verb {
 	case "get", "store", "forget":
 		return runProtocol(verb, verbArgs, *configPath, *profile, stdin, stdout, stderr)
 	case "install":
-		return runInstall(verbArgs, stdout, stderr)
+		return runInstall(verbArgs, pal, stdout, stderr)
 	case "status":
-		return runStatus(*configPath, *profile, stdout, stderr)
+		return runStatus(*configPath, *profile, pal, stdout, stderr)
 	case "profiles":
-		return runProfiles(*configPath, stdout, stderr)
+		return runProfiles(*configPath, pal, stdout, stderr)
 	case "list":
 		return runList(*configPath, *profile, stdout, stderr)
 	case "version":

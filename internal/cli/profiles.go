@@ -11,7 +11,7 @@ import (
 
 // runProfiles prints the configured profiles, their backend and options.
 // Option values may contain paths or service names but never tokens.
-func runProfiles(configPath string, stdout, stderr io.Writer) int {
+func runProfiles(configPath string, pal *palette, stdout, stderr io.Writer) int {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: %v\n", err)
@@ -19,8 +19,8 @@ func runProfiles(configPath string, stdout, stderr io.Writer) int {
 	}
 	if cfg == nil {
 		path, _ := config.ResolvePath(configPath)
-		fmt.Fprintf(stdout, "no config file at %s (zero-config default)\n", path)
-		fmt.Fprintf(stdout, "* default  %s\n", zeroConfigBackend)
+		fmt.Fprintf(stdout, "%s\n", pal.dim(fmt.Sprintf("no config file at %s (zero-config default)", path)))
+		fmt.Fprintf(stdout, "%s %s  %s\n", pal.green("*"), pal.bold("default"), pal.cyan(zeroConfigBackend))
 		return 0
 	}
 	for _, w := range cfg.Warnings {
@@ -33,11 +33,11 @@ func runProfiles(configPath string, stdout, stderr io.Writer) int {
 	}
 	for _, name := range cfg.ProfileNames() {
 		p := cfg.Profiles[name]
-		marker := " "
+		marker, label := " ", name
 		if name == defaultName {
-			marker = "*"
+			marker, label = pal.green("*"), pal.bold(name)
 		}
-		fmt.Fprintf(stdout, "%s %s  %s%s\n", marker, name, p.Backend, formatOptions(p.Options))
+		fmt.Fprintf(stdout, "%s %s  %s%s\n", marker, label, pal.cyan(p.Backend), pal.dim(formatOptions(p.Options)))
 	}
 	return 0
 }
