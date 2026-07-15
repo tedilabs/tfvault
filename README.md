@@ -246,7 +246,12 @@ to replace it.
 `status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
 `~/.terraformrc`) and reports the `credentials_helper` registration,
 explicit `credentials` blocks that bypass the helper, and the profile,
-backend and stored hostnames the current setup resolves to.
+backend and stored hostnames the current setup resolves to. It also
+flags token sources Terraform consults before any helper — `TF_TOKEN_*`
+environment variables and plaintext tokens left in
+`~/.terraform.d/credentials.tfrc.json` by `terraform login` — and, for
+backends that execute an external CLI (`pass`, `op`), checks the binary
+is actually present.
 
 `config show` prints the effective configuration — the config file with
 command line flags applied on top — annotating each value with where it

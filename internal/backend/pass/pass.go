@@ -78,6 +78,22 @@ func expandHome(p string) (string, error) {
 
 func (b *Backend) Name() string { return "pass" }
 
+// Check verifies the pass binary is on PATH and any configured store
+// directory exists, without touching stored secrets or triggering a
+// gpg pinentry prompt.
+func (b *Backend) Check() error {
+	if _, err := exec.LookPath(b.binary); err != nil {
+		return fmt.Errorf("pass backend: %w", err)
+	}
+	if b.storeDir != "" {
+		info, err := os.Stat(b.storeDir)
+		if err != nil || !info.IsDir() {
+			return fmt.Errorf("pass backend: store_dir %q is not a directory", b.storeDir)
+		}
+	}
+	return nil
+}
+
 func (b *Backend) entry(hostname string) string {
 	return path.Join(b.prefix, hostname)
 }

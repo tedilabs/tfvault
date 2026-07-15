@@ -29,3 +29,10 @@ type Backend interface {
 type Lister interface {
 	List() ([]string, error)
 }
+
+// Checker is optionally implemented by backends that can cheaply verify
+// their prerequisites (external binary on PATH, store directory present)
+// without touching any stored secret or triggering interactive prompts.
+type Checker interface {
+	Check() error
+}
