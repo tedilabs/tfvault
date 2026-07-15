@@ -170,10 +170,18 @@ func runConfigEdit(configPath string, stdin io.Reader, stdout, stderr io.Writer)
 	}
 
 	// Catch mistakes while the editing session is still fresh instead
-	// of on the next terraform run.
-	if _, err := config.Load(configPath); err != nil {
+	// of on the next terraform run. Warnings matter here too: editors
+	// that save by write-and-rename recreate the file with umask
+	// permissions, undoing the 0600 above.
+	saved, err := config.Load(configPath)
+	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: warning: saved config is invalid: %v\n", err)
 		return 1
+	}
+	if saved != nil {
+		for _, w := range saved.Warnings {
+			fmt.Fprintf(stderr, "tfvault: warning: %s\n", w)
+		}
 	}
 	return 0
 }

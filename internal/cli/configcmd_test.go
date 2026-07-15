@@ -143,6 +143,23 @@ profiles:
 	}
 }
 
+func TestConfigEditWarnsOnLoosePermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("TFVAULT_CONFIG", path)
+	// Simulate an editor that saves by write-and-rename, recreating the
+	// file with permissions looser than the 0600 it was created with.
+	t.Setenv("EDITOR", `rm "$1" && echo 'color: false' > "$1" && chmod 0644`)
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"config", "edit"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "readable by other users") {
+		t.Errorf("no permission warning after edit, stderr = %q", errOut.String())
+	}
+}
+
 func TestConfigEditWarnsOnInvalidResult(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("TFVAULT_CONFIG", path)
