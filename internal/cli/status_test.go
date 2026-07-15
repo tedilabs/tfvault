@@ -230,6 +230,107 @@ credentials_helper "tfvault" {
 	}
 }
 
+// TestStatusTofurcOnly wires an OpenTofu-only machine: no ~/.terraformrc,
+// helper registered in ~/.tofurc. The setup must count as healthy.
+func TestStatusTofurcOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("TF_CLI_CONFIG_FILE", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	cfgPath := filepath.Join(home, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(`profiles:
+  tofu-prof:
+    backend: testbe
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TFVAULT_CONFIG", cfgPath)
+
+	if err := os.WriteFile(filepath.Join(home, ".tofurc"), []byte(`
+credentials_helper "tfvault" {
+  args = ["--profile", "tofu-prof"]
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := installLink(exe, filepath.Join(home, ".terraform.d", "plugins"), false); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"status"}, strings.NewReader(""), &out, &errOut)
+	got := out.String()
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 with tofurc registered\n%s", code, got)
+	}
+	for _, want := range []string{
+		".tofurc registers credentials_helper \"tfvault\"",
+		"read by opentofu",
+		"tofu-prof (from .tofurc helper args",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestStatusTofurcNotRegistered: terraform is wired up, but a stray
+// ~/.tofurc without a helper block means OpenTofu silently skips
+// tfvault — warn without failing the terraform-side health.
+func TestStatusTofurcNotRegistered(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("TF_CLI_CONFIG_FILE", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	cfgPath := filepath.Join(home, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(`profiles:
+  work:
+    backend: testbe
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TFVAULT_CONFIG", cfgPath)
+
+	if err := os.WriteFile(filepath.Join(home, ".terraformrc"), []byte(`
+credentials_helper "tfvault" {
+  args = ["--profile", "work"]
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".tofurc"), []byte(`plugin_cache_dir = "/tmp"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := installLink(exe, filepath.Join(home, ".terraform.d", "plugins"), false); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"status"}, strings.NewReader(""), &out, &errOut)
+	got := out.String()
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 (terraform side is healthy)\n%s", code, got)
+	}
+	if !strings.Contains(got, ".tofurc has no credentials_helper block") {
+		t.Errorf("output missing tofurc warning:\n%s", got)
+	}
+	if !strings.Contains(got, ".terraformrc registers credentials_helper \"tfvault\"") {
+		t.Errorf("output missing terraformrc ok line:\n%s", got)
+	}
+}
+
 func TestStatusZeroConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

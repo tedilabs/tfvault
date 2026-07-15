@@ -84,6 +84,22 @@ wired up and which profile and backend requests resolve to.
 The helper works for any Terraform-native service hostname, not just
 Terraform Cloud.
 
+## OpenTofu
+
+tfvault works with [OpenTofu](https://opentofu.org) out of the box:
+`tofu` discovers credentials helpers in the same
+`~/.terraform.d/plugins` directory under the same
+`terraform-credentials-<name>` naming, so one `tfvault install` covers
+both tools. Register the helper in `~/.tofurc` with the same
+`credentials_helper` block as above — OpenTofu falls back to
+`~/.terraformrc` when no tofurc exists, and both tools honor
+`$TF_CLI_CONFIG_FILE`.
+
+Careful: once a `~/.tofurc` exists, OpenTofu ignores `~/.terraformrc`
+entirely, so the helper must be registered in both files when both
+tools are used. `tfvault status` checks Terraform's and OpenTofu's CLI
+configs and warns about exactly this.
+
 ## Multiple accounts on one machine
 
 The core feature: different `.terraformrc` files can use different
@@ -243,8 +259,10 @@ tfvault version
 symlink (e.g. a binary copied by an old installer); pass `-f`/`--force`
 to replace it.
 
-`status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
-`~/.terraformrc`) and reports the `credentials_helper` registration,
+`status` reads the CLI configs of both Terraform and OpenTofu
+(`$TF_CLI_CONFIG_FILE` when set, else `~/.terraformrc`, `~/.tofurc` and
+`$XDG_CONFIG_HOME/opentofu/tofurc`) and reports each
+`credentials_helper` registration,
 explicit `credentials` blocks that bypass the helper, and the profile,
 backend and stored hostnames the current setup resolves to. It also
 flags token sources Terraform consults before any helper — `TF_TOKEN_*`
