@@ -29,17 +29,35 @@ type terraformRC struct {
 	CredHosts  []string
 }
 
-// terraformRCPath mirrors Terraform's CLI config lookup on unix:
-// $TF_CLI_CONFIG_FILE, else ~/.terraformrc.
-func terraformRCPath() (string, error) {
+// rcCandidate is one CLI config file a tool may read, labeled with the
+// tool for display.
+type rcCandidate struct {
+	path string
+	tool string
+}
+
+// cliConfigCandidates returns the CLI config files status inspects.
+// $TF_CLI_CONFIG_FILE overrides the lookup for both Terraform and
+// OpenTofu, so it is the only candidate when set. Otherwise Terraform
+// reads ~/.terraformrc while OpenTofu prefers ~/.tofurc (falling back
+// to ~/.terraformrc) and, on machines with neither, uses
+// $XDG_CONFIG_HOME/opentofu/tofurc.
+func cliConfigCandidates() ([]rcCandidate, error) {
 	if p := os.Getenv("TF_CLI_CONFIG_FILE"); p != "" {
-		return p, nil
+		return []rcCandidate{{p, "terraform and opentofu, via $TF_CLI_CONFIG_FILE"}}, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return filepath.Join(home, ".terraformrc"), nil
+	cands := []rcCandidate{
+		{filepath.Join(home, ".terraformrc"), "terraform"},
+		{filepath.Join(home, ".tofurc"), "opentofu"},
+	}
+	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
+		cands = append(cands, rcCandidate{filepath.Join(x, "opentofu", "tofurc"), "opentofu"})
+	}
+	return cands, nil
 }
 
 // parseTerraformRC extracts credentials_helper and credentials blocks.
@@ -101,10 +119,10 @@ func flagValue(args []string, name string) string {
 	return ""
 }
 
-// runStatus reports how Terraform will reach tfvault: the plugin
-// symlink, the terraformrc helper registration, and which profile and
-// backend requests will resolve to. Exit code is nonzero when the
-// helper is not fully wired up.
+// runStatus reports how Terraform and OpenTofu will reach tfvault: the
+// plugin symlink (shared by both tools), the CLI config helper
+// registrations, and which profile and backend requests will resolve
+// to. Exit code is nonzero when the helper is not fully wired up.
 func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.Writer) int {
 	healthy := true
 
@@ -118,44 +136,61 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 	link := filepath.Join(dir, pluginBinary)
 	healthy = reportLink(pal, stdout, link) && healthy
 
-	// Terraform CLI config.
+	// CLI config files of both tools. The setup is healthy when at
+	// least one existing file registers tfvault; files that exist
+	// without registering it get a warning (OpenTofu ignores
+	// ~/.terraformrc entirely once ~/.tofurc exists, so a stray tofurc
+	// silently disables the helper for tofu).
 	fmt.Fprintln(stdout)
-	pal.sectionf(stdout, "Terraform CLI config:")
-	rc := &terraformRC{}
-	rcPath, err := terraformRCPath()
+	pal.sectionf(stdout, "CLI config (terraform / tofu):")
+	rc := &terraformRC{} // the first file registering tfvault drives profile resolution
+	cands, err := cliConfigCandidates()
 	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: status: %v\n", err)
 		return 1
 	}
-	src, err := os.ReadFile(rcPath)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		fmt.Fprintf(stdout, "  %s %s does not exist\n", pal.fail("missing:"), rcPath)
-		healthy = false
-	case err != nil:
-		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
-		healthy = false
-	default:
-		rc, err = parseTerraformRC(src, rcPath)
+	foundAny, registered := false, false
+	var checked []string
+	for _, cand := range cands {
+		checked = append(checked, cand.path)
+		src, err := os.ReadFile(cand.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		foundAny = true
 		if err != nil {
 			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 			healthy = false
-			rc = &terraformRC{}
-			break
+			continue
+		}
+		parsed, err := parseTerraformRC(src, cand.path)
+		if err != nil {
+			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
+			healthy = false
+			continue
 		}
 		switch {
-		case rc.HelperName == "":
-			fmt.Fprintf(stdout, "  %s %s has no credentials_helper block\n", pal.warn("warning:"), rcPath)
-			healthy = false
-		case rc.HelperName != "tfvault":
-			fmt.Fprintf(stdout, "  %s %s registers credentials_helper %q, not \"tfvault\"\n", pal.warn("warning:"), rcPath, rc.HelperName)
-			healthy = false
+		case parsed.HelperName == "":
+			fmt.Fprintf(stdout, "  %s %s has no credentials_helper block (read by %s)\n", pal.warn("warning:"), cand.path, cand.tool)
+		case parsed.HelperName != "tfvault":
+			fmt.Fprintf(stdout, "  %s %s registers credentials_helper %q, not \"tfvault\" (read by %s)\n", pal.warn("warning:"), cand.path, parsed.HelperName, cand.tool)
 		default:
-			fmt.Fprintf(stdout, "  %s %s registers credentials_helper \"tfvault\" (args: %q)\n", pal.ok("ok:"), rcPath, rc.HelperArgs)
+			fmt.Fprintf(stdout, "  %s %s registers credentials_helper \"tfvault\" (args: %q; read by %s)\n", pal.ok("ok:"), cand.path, parsed.HelperArgs, cand.tool)
+			if !registered {
+				rc = parsed
+				registered = true
+			}
 		}
-		for _, h := range rc.CredHosts {
+		for _, h := range parsed.CredHosts {
 			fmt.Fprintf(stdout, "  %s credentials %q block takes precedence over the helper for that host\n", pal.warn("note:"), h)
 		}
+	}
+	switch {
+	case !foundAny:
+		fmt.Fprintf(stdout, "  %s no CLI config found (checked %s)\n", pal.fail("missing:"), strings.Join(checked, ", "))
+		healthy = false
+	case !registered:
+		healthy = false
 	}
 
 	// Token sources Terraform consults before the helper. These may be
@@ -175,7 +210,10 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 	source := "--profile flag"
 	if profile == "" {
 		profile = flagValue(rc.HelperArgs, "profile")
-		source = "terraformrc helper args"
+		source = "helper args"
+		if rc.Path != "" {
+			source = filepath.Base(rc.Path) + " helper args"
+		}
 	}
 
 	b := reportProfile(pal, stdout, configPath, profile, source, stderr)
