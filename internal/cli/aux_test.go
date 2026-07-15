@@ -100,6 +100,65 @@ func TestListResolutionError(t *testing.T) {
 	}
 }
 
+func TestHelpFlagExitsZero(t *testing.T) {
+	for _, flag := range []string{"-h", "--help"} {
+		var out, errOut bytes.Buffer
+		code := Run([]string{flag}, strings.NewReader(""), &out, &errOut)
+		if code != 0 {
+			t.Errorf("%s: exit code = %d, want 0", flag, code)
+		}
+		if !strings.Contains(out.String(), "Usage: tfvault") {
+			t.Errorf("%s: stdout = %q, want usage", flag, out.String())
+		}
+		if errOut.Len() != 0 {
+			t.Errorf("%s: stderr = %q, want empty", flag, errOut.String())
+		}
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := Run([]string{"--version"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out.String(), "tfvault") {
+		t.Errorf("output = %q", out.String())
+	}
+}
+
+func TestHelpVerb(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errOut); code != 0 {
+		t.Errorf("help: exit code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "Usage: tfvault") {
+		t.Errorf("help: stdout = %q", out.String())
+	}
+
+	out.Reset()
+	if code := Run([]string{"help", "config"}, strings.NewReader(""), &out, &errOut); code != 0 {
+		t.Errorf("help config: exit code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "config <subcommand>") {
+		t.Errorf("help config: stdout = %q", out.String())
+	}
+
+	if code := Run([]string{"help", "bogus"}, strings.NewReader(""), &out, &errOut); code == 0 {
+		t.Error("help bogus: exit code = 0, want nonzero")
+	}
+}
+
+func TestUnknownFlagPrintsUsage(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"--bogus"}, strings.NewReader(""), &out, &errOut); code == 0 {
+		t.Fatal("exit code = 0, want nonzero")
+	}
+	if !strings.Contains(errOut.String(), "Usage: tfvault") {
+		t.Errorf("stderr = %q, want usage after flag error", errOut.String())
+	}
+}
+
 func TestVersionOutput(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := Run([]string{"version"}, strings.NewReader(""), &out, &errOut)
