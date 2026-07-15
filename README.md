@@ -153,6 +153,7 @@ Top-level settings besides `default_profile`:
 
 ```yaml
 color: false # disable colored output from auxiliary commands (optional)
+editor: vim # editor for "tfvault config edit"; takes precedence over $EDITOR (optional)
 ```
 
 Each entry under `profiles` names exactly one `backend` and passes the
@@ -231,6 +232,8 @@ helper. The env backend is useful for the *prefix override* case
 ```sh
 tfvault install                     # symlink the helper into ~/.terraform.d/plugins
 tfvault status                      # plugin link, terraformrc and profile resolution
+tfvault config show                 # effective configuration and where each value comes from
+tfvault config edit                 # open the config file in your editor
 tfvault profiles                    # list profiles, default marked with *
 tfvault --profile customer-b list   # hostnames with stored credentials
 tfvault version
@@ -244,6 +247,11 @@ to replace it.
 `~/.terraformrc`) and reports the `credentials_helper` registration,
 explicit `credentials` blocks that bypass the helper, and the profile,
 backend and stored hostnames the current setup resolves to.
+
+`config show` prints the effective configuration — the config file with
+command line flags applied on top — annotating each value with where it
+came from. `config edit` opens the config file (created with mode 0600
+when missing) in the config `editor` setting, else `$EDITOR`, else `vi`.
 
 `list` is supported by the `pass`, `op` and `env` backends; OS keyrings
 cannot enumerate entries. Token values are never printed by any
