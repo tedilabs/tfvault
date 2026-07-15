@@ -103,21 +103,22 @@ func flagValue(args []string, name string) string {
 // symlink, the terraformrc helper registration, and which profile and
 // backend requests will resolve to. Exit code is nonzero when the
 // helper is not fully wired up.
-func runStatus(configPath, profileFlag string, stdout, stderr io.Writer) int {
+func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.Writer) int {
 	healthy := true
 
 	// Plugin symlink.
-	fmt.Fprintln(stdout, "Plugin link:")
+	pal.sectionf(stdout, "Plugin link:")
 	dir, err := pluginDir()
 	if err != nil {
 		fmt.Fprintf(stderr, "tfvault: status: %v\n", err)
 		return 1
 	}
 	link := filepath.Join(dir, pluginBinary)
-	healthy = reportLink(stdout, link) && healthy
+	healthy = reportLink(pal, stdout, link) && healthy
 
 	// Terraform CLI config.
-	fmt.Fprintln(stdout, "\nTerraform CLI config:")
+	fmt.Fprintln(stdout)
+	pal.sectionf(stdout, "Terraform CLI config:")
 	rc := &terraformRC{}
 	rcPath, err := terraformRCPath()
 	if err != nil {
@@ -127,37 +128,38 @@ func runStatus(configPath, profileFlag string, stdout, stderr io.Writer) int {
 	src, err := os.ReadFile(rcPath)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		fmt.Fprintf(stdout, "  missing: %s does not exist\n", rcPath)
+		fmt.Fprintf(stdout, "  %s %s does not exist\n", pal.fail("missing:"), rcPath)
 		healthy = false
 	case err != nil:
-		fmt.Fprintf(stdout, "  error: %v\n", err)
+		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		healthy = false
 	default:
 		rc, err = parseTerraformRC(src, rcPath)
 		if err != nil {
-			fmt.Fprintf(stdout, "  error: %v\n", err)
+			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 			healthy = false
 			rc = &terraformRC{}
 			break
 		}
 		switch {
 		case rc.HelperName == "":
-			fmt.Fprintf(stdout, "  warning: %s has no credentials_helper block\n", rcPath)
+			fmt.Fprintf(stdout, "  %s %s has no credentials_helper block\n", pal.warn("warning:"), rcPath)
 			healthy = false
 		case rc.HelperName != "tfvault":
-			fmt.Fprintf(stdout, "  warning: %s registers credentials_helper %q, not \"tfvault\"\n", rcPath, rc.HelperName)
+			fmt.Fprintf(stdout, "  %s %s registers credentials_helper %q, not \"tfvault\"\n", pal.warn("warning:"), rcPath, rc.HelperName)
 			healthy = false
 		default:
-			fmt.Fprintf(stdout, "  ok: %s registers credentials_helper \"tfvault\" (args: %q)\n", rcPath, rc.HelperArgs)
+			fmt.Fprintf(stdout, "  %s %s registers credentials_helper \"tfvault\" (args: %q)\n", pal.ok("ok:"), rcPath, rc.HelperArgs)
 		}
 		for _, h := range rc.CredHosts {
-			fmt.Fprintf(stdout, "  note: credentials %q block takes precedence over the helper for that host\n", h)
+			fmt.Fprintf(stdout, "  %s credentials %q block takes precedence over the helper for that host\n", pal.warn("note:"), h)
 		}
 	}
 
 	// Profile and backend resolution, following the same precedence as
 	// a real helper invocation driven by this terraformrc.
-	fmt.Fprintln(stdout, "\nProfile:")
+	fmt.Fprintln(stdout)
+	pal.sectionf(stdout, "Profile:")
 	if configPath == "" {
 		configPath = flagValue(rc.HelperArgs, "config")
 	}
@@ -168,27 +170,28 @@ func runStatus(configPath, profileFlag string, stdout, stderr io.Writer) int {
 		source = "terraformrc helper args"
 	}
 
-	b := reportProfile(stdout, configPath, profile, source, stderr)
+	b := reportProfile(pal, stdout, configPath, profile, source, stderr)
 	if b == nil {
 		return 1
 	}
 
 	// Stored hosts, when the backend can enumerate them.
-	fmt.Fprintln(stdout, "\nHosts with stored credentials:")
+	fmt.Fprintln(stdout)
+	pal.sectionf(stdout, "Hosts with stored credentials:")
 	if lister, ok := b.(backend.Lister); ok {
 		hosts, err := lister.List()
 		switch {
 		case err != nil:
-			fmt.Fprintf(stdout, "  error: %v\n", err)
+			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		case len(hosts) == 0:
-			fmt.Fprintln(stdout, "  (none)")
+			fmt.Fprintln(stdout, pal.dim("  (none)"))
 		default:
 			for _, h := range hosts {
 				fmt.Fprintf(stdout, "  %s\n", h)
 			}
 		}
 	} else {
-		fmt.Fprintf(stdout, "  (the %q backend cannot enumerate entries)\n", b.Name())
+		fmt.Fprintf(stdout, "%s\n", pal.dim(fmt.Sprintf("  (the %q backend cannot enumerate entries)", b.Name())))
 	}
 
 	if !healthy {
@@ -199,52 +202,52 @@ func runStatus(configPath, profileFlag string, stdout, stderr io.Writer) int {
 
 // reportLink prints the state of the plugin symlink and returns whether
 // it is usable.
-func reportLink(stdout io.Writer, link string) bool {
+func reportLink(pal *palette, stdout io.Writer, link string) bool {
 	info, err := os.Lstat(link)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		fmt.Fprintf(stdout, "  missing: %s — run \"tfvault install\"\n", link)
+		fmt.Fprintf(stdout, "  %s %s — run \"tfvault install\"\n", pal.fail("missing:"), link)
 		return false
 	case err != nil:
-		fmt.Fprintf(stdout, "  error: %v\n", err)
+		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		return false
 	case info.Mode()&fs.ModeSymlink == 0:
-		fmt.Fprintf(stdout, "  warning: %s is not a symlink (an old install?)\n", link)
+		fmt.Fprintf(stdout, "  %s %s is not a symlink (an old install?)\n", pal.warn("warning:"), link)
 		return true // a real binary there still works for Terraform
 	}
 	target, err := os.Readlink(link)
 	if err != nil {
-		fmt.Fprintf(stdout, "  error: %v\n", err)
+		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		return false
 	}
 	if _, err := os.Stat(link); err != nil {
-		fmt.Fprintf(stdout, "  broken: %s -> %s (target missing) — run \"tfvault install\"\n", link, target)
+		fmt.Fprintf(stdout, "  %s %s -> %s (target missing) — run \"tfvault install\"\n", pal.fail("broken:"), link, target)
 		return false
 	}
-	fmt.Fprintf(stdout, "  ok: %s -> %s\n", link, target)
+	fmt.Fprintf(stdout, "  %s %s -> %s\n", pal.ok("ok:"), link, target)
 	return true
 }
 
 // reportProfile prints the resolved profile and backend and returns the
 // instantiated backend, or nil when resolution fails.
-func reportProfile(stdout io.Writer, configPath, profile, source string, stderr io.Writer) backend.Backend {
+func reportProfile(pal *palette, stdout io.Writer, configPath, profile, source string, stderr io.Writer) backend.Backend {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(stdout, "  error: %v\n", err)
+		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		return nil
 	}
 
 	if cfg == nil {
 		path, _ := config.ResolvePath(configPath)
 		if profile != "" && profile != "default" {
-			fmt.Fprintf(stdout, "  error: profile %q requested but no config file found at %s\n", profile, path)
+			fmt.Fprintf(stdout, "  %s profile %q requested but no config file found at %s\n", pal.fail("error:"), profile, path)
 			return nil
 		}
 		fmt.Fprintf(stdout, "  default (zero-config: no file at %s)\n", path)
-		fmt.Fprintf(stdout, "  backend: %s\n", zeroConfigBackend)
+		fmt.Fprintf(stdout, "  backend: %s\n", pal.cyan(zeroConfigBackend))
 		b, err := backend.New(zeroConfigBackend, nil)
 		if err != nil {
-			fmt.Fprintf(stdout, "  error: %v\n", err)
+			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 			return nil
 		}
 		return b
@@ -261,14 +264,14 @@ func reportProfile(stdout io.Writer, configPath, profile, source string, stderr 
 	}
 	p, ok := cfg.Profiles[profile]
 	if !ok {
-		fmt.Fprintf(stdout, "  error: profile %q not found in %s (available: %v)\n", profile, cfg.Path, cfg.ProfileNames())
+		fmt.Fprintf(stdout, "  %s profile %q not found in %s (available: %v)\n", pal.fail("error:"), profile, cfg.Path, cfg.ProfileNames())
 		return nil
 	}
-	fmt.Fprintf(stdout, "  %s (from %s, config %s)\n", profile, source, cfg.Path)
-	fmt.Fprintf(stdout, "  backend: %s%s\n", p.Backend, formatOptions(p.Options))
+	fmt.Fprintf(stdout, "  %s (from %s, config %s)\n", pal.bold(profile), source, cfg.Path)
+	fmt.Fprintf(stdout, "  backend: %s%s\n", pal.cyan(p.Backend), formatOptions(p.Options))
 	b, err := backend.New(p.Backend, p.Options)
 	if err != nil {
-		fmt.Fprintf(stdout, "  error: %v\n", err)
+		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		return nil
 	}
 	return b

@@ -149,6 +149,12 @@ profile without a config file is an error — a named profile implies
 isolation you set up on purpose, so tfvault never falls back to shared
 storage.
 
+Top-level settings besides `default_profile`:
+
+```yaml
+color: false # disable colored output from auxiliary commands (optional)
+```
+
 Each entry under `profiles` names exactly one `backend` and passes the
 keys under `options` to it:
 
@@ -242,6 +248,12 @@ backend and stored hostnames the current setup resolves to.
 `list` is supported by the `pass`, `op` and `env` backends; OS keyrings
 cannot enumerate entries. Token values are never printed by any
 auxiliary command.
+
+Auxiliary command output is colorized when stdout is a terminal.
+Disable it with `--no-color`, the [`NO_COLOR`](https://no-color.org)
+environment variable, or `color: false` in the config file. Protocol
+(`get`/`store`/`forget`) and `list` output is always plain, since other
+programs consume it.
 
 ## Caveats
 

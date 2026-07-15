@@ -28,6 +28,10 @@ type Profile struct {
 type Config struct {
 	DefaultProfile string
 	Profiles       map[string]*Profile
+	// Color disables (false) or allows (true) colored output from
+	// auxiliary commands. nil means unset: color is decided by the
+	// terminal and the NO_COLOR convention.
+	Color *bool
 	// Path is the file the config was loaded from.
 	Path string
 	// Warnings are non-fatal issues (e.g. loose file permissions) the
@@ -93,6 +97,7 @@ func Load(flagPath string) (*Config, error) {
 //	      service: tfvault-personal
 type yamlConfig struct {
 	DefaultProfile string                 `yaml:"default_profile"`
+	Color          *bool                  `yaml:"color"`
 	Profiles       map[string]yamlProfile `yaml:"profiles"`
 }
 
@@ -110,7 +115,7 @@ func parse(src []byte, path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
-	cfg := &Config{Profiles: map[string]*Profile{}, Path: path, DefaultProfile: raw.DefaultProfile}
+	cfg := &Config{Profiles: map[string]*Profile{}, Path: path, DefaultProfile: raw.DefaultProfile, Color: raw.Color}
 
 	for name, p := range raw.Profiles {
 		if p.Backend == "" {
