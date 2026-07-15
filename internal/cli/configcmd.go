@@ -14,10 +14,19 @@ import (
 // file's editor setting nor $EDITOR is set.
 const fallbackEditor = "vi"
 
+const configUsage = `Usage: tfvault [flags] config <subcommand>
+
+Inspect and edit the tfvault configuration.
+
+Subcommands:
+  show                print the effective configuration and its sources
+  edit                open the config file in the configured editor
+`
+
 // runConfig dispatches the config subcommands.
 func runConfig(args []string, configPath, profileFlag string, noColorFlag bool, pal *palette, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "tfvault: config: expected a subcommand: show, edit")
+		fmt.Fprint(stderr, configUsage)
 		return 1
 	}
 	if len(args) > 1 {

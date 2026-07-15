@@ -20,11 +20,12 @@ Auxiliary commands:
   install [-f]        symlink the helper into ~/.terraform.d/plugins
                       (-f/--force replaces an existing non-symlink file)
   status              show plugin link, terraformrc and profile resolution
-  config show         print the effective configuration and its sources
-  config edit         open the config file in the configured editor
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)
   version             print version information
+
+Command groups (run without a subcommand for details):
+  config              inspect and edit the tfvault configuration
 
 Flags:
   --profile <name>    profile to use (default: config default_profile, else "default")
