@@ -180,7 +180,13 @@ func TestConfigUnknownSubcommand(t *testing.T) {
 	if code := Run([]string{"config", "frobnicate"}, strings.NewReader(""), &out, &errOut); code == 0 {
 		t.Fatal("exit code = 0, want nonzero")
 	}
+	errOut.Reset()
 	if code := Run([]string{"config"}, strings.NewReader(""), &out, &errOut); code == 0 {
 		t.Fatal("exit code = 0, want nonzero for missing subcommand")
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "Usage: tfvault [flags] config <subcommand>") ||
+		!strings.Contains(got, "show") || !strings.Contains(got, "edit") {
+		t.Errorf("bare config did not print group usage, stderr = %q", got)
 	}
 }
