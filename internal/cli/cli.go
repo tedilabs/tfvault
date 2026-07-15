@@ -20,6 +20,8 @@ Auxiliary commands:
   install [-f]        symlink the helper into ~/.terraform.d/plugins
                       (-f/--force replaces an existing non-symlink file)
   status              show plugin link, terraformrc and profile resolution
+  config show         print the effective configuration and its sources
+  config edit         open the config file in the configured editor
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)
   version             print version information
@@ -65,6 +67,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runInstall(verbArgs, pal, stdout, stderr)
 	case "status":
 		return runStatus(*configPath, *profile, pal, stdout, stderr)
+	case "config":
+		return runConfig(verbArgs, *configPath, *profile, *noColor, pal, stdin, stdout, stderr)
 	case "profiles":
 		return runProfiles(*configPath, pal, stdout, stderr)
 	case "list":

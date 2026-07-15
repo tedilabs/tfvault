@@ -32,6 +32,9 @@ type Config struct {
 	// auxiliary commands. nil means unset: color is decided by the
 	// terminal and the NO_COLOR convention.
 	Color *bool
+	// Editor is the command "config edit" opens the config file with,
+	// taking precedence over $EDITOR.
+	Editor string
 	// Path is the file the config was loaded from.
 	Path string
 	// Warnings are non-fatal issues (e.g. loose file permissions) the
@@ -98,6 +101,7 @@ func Load(flagPath string) (*Config, error) {
 type yamlConfig struct {
 	DefaultProfile string                 `yaml:"default_profile"`
 	Color          *bool                  `yaml:"color"`
+	Editor         string                 `yaml:"editor"`
 	Profiles       map[string]yamlProfile `yaml:"profiles"`
 }
 
@@ -115,7 +119,7 @@ func parse(src []byte, path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
-	cfg := &Config{Profiles: map[string]*Profile{}, Path: path, DefaultProfile: raw.DefaultProfile, Color: raw.Color}
+	cfg := &Config{Profiles: map[string]*Profile{}, Path: path, DefaultProfile: raw.DefaultProfile, Color: raw.Color, Editor: raw.Editor}
 
 	for name, p := range raw.Profiles {
 		if p.Backend == "" {
