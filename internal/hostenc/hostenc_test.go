@@ -23,6 +23,16 @@ func TestNormalize(t *testing.T) {
 		{"host name.com", "", true},
 		{"host\nname.com", "", true},
 		{"$(evil).com", "", true},
+		// host[:port] shape: the env encoding maps ":" and "-" onto
+		// underscores, so loose inputs collide with legitimate hosts.
+		{":443", "", true},
+		{"a::443", "", true},
+		{"app.terraform.io:8443:9", "", true},
+		{"tfe.example.com:", "", true},
+		{"tfe.example.com:8a43", "", true},
+		{"example.com.", "", true},
+		{"example.com.:443", "", true},
+		{"trailing-dash-.com", "", true},
 	}
 	for _, tt := range tests {
 		got, err := Normalize(tt.in)
