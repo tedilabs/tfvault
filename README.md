@@ -290,6 +290,13 @@ programs consume it.
   returning an empty `{}` that would mask a broken setup.
 - A world-readable config file produces a warning (it holds no secrets,
   but paths and service names are better kept private).
+- On macOS, the `keyring` backend stores items through the `security`
+  CLI, whose items any process running as the same user can read back
+  without a prompt — comparable to file permissions, weaker than a
+  per-app keychain ACL. Migrating to the native Keychain API together
+  with signed binaries is tracked in
+  [#14](https://github.com/tedilabs/tfvault/issues/14) and
+  [#13](https://github.com/tedilabs/tfvault/issues/13).
 
 ## Development
 
