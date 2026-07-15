@@ -100,7 +100,7 @@ const fishCompletion = `# fish completion for tfvault
 # Install: tfvault completion fish > ~/.config/fish/completions/tfvault.fish
 
 function __tfvault_profiles
-    tfvault profiles 2>/dev/null | string replace -r '^\* ' '' | string trim -l | string split -f1 ' '
+    tfvault profiles 2>/dev/null | string match -e -r '^\* |^  ' | string replace -r '^\* ' '' | string trim -l | string split -f1 ' '
 end
 
 complete -c tfvault -f
