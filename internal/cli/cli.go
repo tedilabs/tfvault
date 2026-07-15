@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ Auxiliary commands:
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)
   version             print version information
+  help [topic]        print usage (topics: config)
 
 Command groups (run without a subcommand for details):
   config              inspect and edit the tfvault configuration
@@ -31,6 +33,7 @@ Flags:
   --profile <name>    profile to use (default: config default_profile, else "default")
   --config <path>     config file path (default: $TFVAULT_CONFIG, else ~/.config/tfvault/config.yaml)
   --no-color          disable colored output (also: NO_COLOR env, "color: false" in config)
+  --version           print version information
 `
 
 // resolveBackend resolves the backend for a profile. It is a variable so
@@ -42,12 +45,24 @@ var resolveBackend = defaultResolveBackend
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("tfvault", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.Usage = func() { fmt.Fprint(stderr, usage) }
+	// Usage printing is handled on the error paths below; a no-op here
+	// avoids flag's implicit call printing it a second time on -h.
+	fs.Usage = func() {}
 	profile := fs.String("profile", "", "profile name")
 	configPath := fs.String("config", "", "config file path")
 	noColor := fs.Bool("no-color", false, "disable colored output")
+	versionFlag := fs.Bool("version", false, "print version information")
 	if err := fs.Parse(args); err != nil {
+		// Requested help is not a failure: usage goes to stdout, exit 0.
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(stdout, usage)
+			return 0
+		}
+		fmt.Fprint(stderr, usage)
 		return 1
+	}
+	if *versionFlag {
+		return runVersion(stdout)
 	}
 
 	rest := fs.Args()
@@ -76,10 +91,28 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runList(*configPath, *profile, stdout, stderr)
 	case "version":
 		return runVersion(stdout)
+	case "help":
+		return runHelp(verbArgs, stdout, stderr)
 	default:
 		// Unknown verbs must fail so future protocol extensions are not
 		// silently misinterpreted.
 		fmt.Fprintf(stderr, "tfvault: unknown command %q\n", verb)
+		return 1
+	}
+}
+
+// runHelp prints usage for the CLI or for a command group topic.
+func runHelp(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
+	switch args[0] {
+	case "config":
+		fmt.Fprint(stdout, configUsage)
+		return 0
+	default:
+		fmt.Fprintf(stderr, "tfvault: help: unknown topic %q\n", args[0])
 		return 1
 	}
 }
