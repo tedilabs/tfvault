@@ -24,6 +24,7 @@ Auxiliary commands:
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)
   version             print version information
+  completion <shell>  print a completion script (bash, zsh, fish)
   help [topic]        print usage (topics: config)
 
 Command groups (run without a subcommand for details):
@@ -91,6 +92,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runList(*configPath, *profile, stdout, stderr)
 	case "version":
 		return runVersion(stdout)
+	case "completion":
+		return runCompletion(verbArgs, stdout, stderr)
 	case "help":
 		return runHelp(verbArgs, stdout, stderr)
 	default:
