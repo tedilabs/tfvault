@@ -1,3 +1,4 @@
 /tfvault
 /dist/
 *.test
+/.playwright-mcp/

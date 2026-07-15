@@ -5,5 +5,6 @@ package cli
 import (
 	_ "github.com/tedilabs/tfvault/internal/backend/env"
 	_ "github.com/tedilabs/tfvault/internal/backend/keyring"
+	_ "github.com/tedilabs/tfvault/internal/backend/op"
 	_ "github.com/tedilabs/tfvault/internal/backend/pass"
 )

@@ -14,10 +14,11 @@ from the backend you configure:
 |-----------|------------------------------------------------------|----------|
 | `keyring` | OS keyring (macOS Keychain, Linux Secret Service)    | yes      |
 | `pass`    | [pass](https://www.passwordstore.org/) / [gopass](https://www.gopass.pw/) password store | yes |
+| `op`      | [1Password](https://developer.1password.com/docs/cli/) via the `op` CLI | yes |
 | `env`     | environment variables (`TF_TOKEN_*` encoding)        | read-only |
 
-Planned: AWS Secrets Manager, SSM Parameter Store, HashiCorp Vault,
-1Password. Each backend is one Go package + one registration line.
+Planned: AWS Secrets Manager, SSM Parameter Store, HashiCorp Vault.
+Each backend is one Go package + one registration line.
 
 Supported platforms: macOS and Linux, amd64 and arm64.
 
@@ -180,6 +181,26 @@ profiles:
 Tokens are exchanged with the child process via stdin/stdout only,
 never argv. Both pass and gopass are supported and integration-tested.
 
+### `op` (1Password)
+
+```yaml
+profiles:
+  example:
+    backend: op
+    options:
+      vault: Work # 1Password vault name (optional; default vault when omitted)
+      account: my.1password.com # for multiple 1Password accounts (optional)
+      prefix: tfvault/ # item title prefix: <prefix><hostname> (default "tfvault/")
+      binary: op # or an absolute path (default "op")
+```
+
+Requires the [1Password CLI](https://developer.1password.com/docs/cli/)
+(v2) with any of its auth methods: the desktop-app integration,
+`OP_SERVICE_ACCOUNT_TOKEN`, or `op signin`. Entries are stored as
+"API Credential" items tagged `tfvault`, and tokens are exchanged with
+the `op` process via stdin/stdout only — never argv. Different profiles
+can point at different vaults or accounts for per-client isolation.
+
 ### `env` (read-only)
 
 ```yaml
@@ -218,9 +239,9 @@ to replace it.
 explicit `credentials` blocks that bypass the helper, and the profile,
 backend and stored hostnames the current setup resolves to.
 
-`list` is supported by the `pass` and `env` backends; OS keyrings cannot
-enumerate entries. Token values are never printed by any auxiliary
-command.
+`list` is supported by the `pass`, `op` and `env` backends; OS keyrings
+cannot enumerate entries. Token values are never printed by any
+auxiliary command.
 
 ## Caveats
 
