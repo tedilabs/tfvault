@@ -28,14 +28,16 @@ Reports especially welcome:
 
 - Token exposure through argv, environment of child processes, logs, or
   auxiliary command output (the project's core guarantees — see
-  "Security notes" in the README)
+  ["Security notes" in the README](README.md#security-notes))
 - Injection through hostnames or configuration values (path traversal,
   argv or environment-variable injection)
 - Protocol behavior that masks a broken backend as "no credentials"
   (fail-open where fail-closed is promised)
 - Supply-chain issues in the release pipeline or install script
 
-Known limitations documented in the README (for example, OS keychain
-items being readable by other same-user processes on macOS via the
-`security` CLI) are accepted risks rather than vulnerabilities, but
-reports that worsen them are still in scope.
+Known limitations documented in the README's Security notes (for
+example, macOS keychain items being readable by other same-user
+processes via the `security` CLI, tracked in
+[#14](https://github.com/tedilabs/tfvault/issues/14)) are accepted
+risks rather than vulnerabilities, but reports that worsen them are
+still in scope.
