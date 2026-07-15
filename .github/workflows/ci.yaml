@@ -41,6 +41,11 @@ jobs:
           go-version-file: go.mod
       - uses: goreleaser/goreleaser-action@v6
         with:
+          # Pinned so a goreleaser release that removes the deprecated
+          # brews section (kept for Linuxbrew support) cannot break CI
+          # or a tag-day release. Bump deliberately after checking
+          # goreleaser.com/deprecations.
+          version: v2.17.0
           install-only: true
       - name: goreleaser check (deprecations allowed)
         # exit 2 = config valid but uses deprecated properties (the
