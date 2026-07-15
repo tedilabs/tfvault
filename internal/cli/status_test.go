@@ -2,11 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/tedilabs/tfvault/internal/backend"
 )
 
 func TestParseTerraformRC(t *testing.T) {
@@ -169,6 +172,61 @@ credentials_helper "tfvault" {
 	Run([]string{"--profile", "from-flag", "status"}, strings.NewReader(""), &out, &errOut)
 	if !strings.Contains(out.String(), "from-flag (from --profile flag") {
 		t.Errorf("output = %s", out.String())
+	}
+}
+
+// errListBackend fails enumeration, exercising the status List error path.
+type errListBackend struct{ testBackend }
+
+func (errListBackend) List() ([]string, error) { return nil, errors.New("vault locked") }
+
+func init() {
+	backend.Register("errlistbe", func(map[string]string) (backend.Backend, error) {
+		return &errListBackend{}, nil
+	})
+}
+
+// TestStatusListErrorUnhealthy verifies that a backend which cannot
+// enumerate its entries makes status exit nonzero even when the link
+// and terraformrc are fully wired up.
+func TestStatusListErrorUnhealthy(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfgPath := filepath.Join(home, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(`profiles:
+  broken:
+    backend: errlistbe
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TFVAULT_CONFIG", cfgPath)
+
+	rcPath := filepath.Join(home, "terraformrc")
+	if err := os.WriteFile(rcPath, []byte(`
+credentials_helper "tfvault" {
+  args = ["--profile", "broken"]
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TF_CLI_CONFIG_FILE", rcPath)
+
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := installLink(exe, filepath.Join(home, ".terraform.d", "plugins"), false); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"status"}, strings.NewReader(""), &out, &errOut)
+	if code == 0 {
+		t.Errorf("exit code = 0, want nonzero when List fails\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "vault locked") {
+		t.Errorf("output missing List error:\n%s", out.String())
 	}
 }
 

@@ -182,7 +182,10 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 		hosts, err := lister.List()
 		switch {
 		case err != nil:
+			// A backend that cannot even list (locked vault, dead daemon)
+			// will not serve credentials either; the report must fail.
 			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
+			healthy = false
 		case len(hosts) == 0:
 			fmt.Fprintln(stdout, pal.dim("  (none)"))
 		default:
