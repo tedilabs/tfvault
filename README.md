@@ -236,7 +236,20 @@ tfvault config show                 # effective configuration and where each val
 tfvault config edit                 # open the config file in your editor
 tfvault profiles                    # list profiles, default marked with *
 tfvault --profile customer-b list   # hostnames with stored credentials
+tfvault completion bash             # completion script (bash, zsh, fish)
 tfvault version
+```
+
+Shell completions complete commands, flags and profile names (the
+latter by invoking `tfvault profiles`):
+
+```sh
+# bash (~/.bashrc)
+eval "$(tfvault completion bash)"
+# zsh
+tfvault completion zsh > "${fpath[1]}/_tfvault"
+# fish
+tfvault completion fish > ~/.config/fish/completions/tfvault.fish
 ```
 
 `install` refuses to overwrite anything at the link path that is not a
