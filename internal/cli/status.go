@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -156,6 +158,12 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 		}
 	}
 
+	// Token sources Terraform consults before the helper. These may be
+	// intentional, so they are notes rather than failures.
+	fmt.Fprintln(stdout)
+	pal.sectionf(stdout, "Shadowing token sources:")
+	reportShadowing(pal, stdout)
+
 	// Profile and backend resolution, following the same precedence as
 	// a real helper invocation driven by this terraformrc.
 	fmt.Fprintln(stdout)
@@ -173,6 +181,14 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 	b := reportProfile(pal, stdout, configPath, profile, source, stderr)
 	if b == nil {
 		return 1
+	}
+	if c, ok := b.(backend.Checker); ok {
+		if err := c.Check(); err != nil {
+			fmt.Fprintf(stdout, "  %s %v\n", pal.fail("check:"), err)
+			healthy = false
+		} else {
+			fmt.Fprintf(stdout, "  %s backend prerequisites present\n", pal.ok("check:"))
+		}
 	}
 
 	// Stored hosts, when the backend can enumerate them.
@@ -198,6 +214,65 @@ func runStatus(configPath, profileFlag string, pal *palette, stdout, stderr io.W
 		return 1
 	}
 	return 0
+}
+
+// reportShadowing warns about token sources Terraform consults before
+// any credentials helper: TF_TOKEN_* environment variables and the
+// plaintext credentials file terraform login writes when no helper is
+// configured.
+func reportShadowing(pal *palette, stdout io.Writer) {
+	found := false
+
+	var names []string
+	for _, kv := range os.Environ() {
+		if name, _, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(name, "TF_TOKEN_") {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		fmt.Fprintf(stdout, "  %s %s is set; Terraform uses it before consulting the helper\n", pal.warn("note:"), n)
+		found = true
+	}
+
+	if home, err := os.UserHomeDir(); err == nil {
+		path := filepath.Join(home, ".terraform.d", "credentials.tfrc.json")
+		if hosts := plaintextCredHosts(path); len(hosts) > 0 {
+			fmt.Fprintf(stdout, "  %s plaintext tokens in %s for: %s\n", pal.warn("note:"), path, strings.Join(hosts, ", "))
+			fmt.Fprintf(stdout, "        they take precedence over the helper; remove with \"terraform logout <hostname>\"\n")
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Fprintln(stdout, pal.dim("  (none)"))
+	}
+}
+
+// plaintextCredHosts returns the hostnames with a token in Terraform's
+// plaintext credentials file, or nil when the file is absent or not in
+// the expected shape. Tokens themselves are never read out.
+func plaintextCredHosts(path string) []string {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var f struct {
+		Credentials map[string]struct {
+			Token string `json:"token"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal(src, &f); err != nil {
+		return nil
+	}
+	var hosts []string
+	for h, c := range f.Credentials {
+		if c.Token != "" {
+			hosts = append(hosts, h)
+		}
+	}
+	sort.Strings(hosts)
+	return hosts
 }
 
 // reportLink prints the state of the plugin symlink and returns whether

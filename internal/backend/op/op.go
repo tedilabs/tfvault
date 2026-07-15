@@ -69,6 +69,16 @@ func New(opts map[string]string) (backend.Backend, error) {
 
 func (b *Backend) Name() string { return "op" }
 
+// Check verifies the op binary is on PATH. It deliberately does not
+// invoke it: any op command may trigger an interactive unlock or
+// authorization prompt.
+func (b *Backend) Check() error {
+	if _, err := exec.LookPath(b.binary); err != nil {
+		return fmt.Errorf("op backend: %w", err)
+	}
+	return nil
+}
+
 func (b *Backend) title(hostname string) string {
 	return b.prefix + hostname
 }
