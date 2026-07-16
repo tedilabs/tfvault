@@ -230,6 +230,36 @@ credentials_helper "tfvault" {
 	}
 }
 
+// TestReportLinkWrapper: status must recognize the wrapper written for
+// mise installs as healthy, and flag it when the shim disappears.
+func TestReportLinkWrapper(t *testing.T) {
+	dir := t.TempDir()
+	exe, shim := fakeMiseExe(t)
+	if _, err := installLink(exe, dir, false); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, pluginBinary)
+
+	var out bytes.Buffer
+	if !reportLink(&palette{}, &out, link) {
+		t.Errorf("healthy wrapper reported as broken:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "wraps mise shim") {
+		t.Errorf("output = %q", out.String())
+	}
+
+	if err := os.Remove(shim); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if reportLink(&palette{}, &out, link) {
+		t.Errorf("wrapper with missing shim reported healthy:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "shim missing") {
+		t.Errorf("output = %q", out.String())
+	}
+}
+
 func TestStatusZeroConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
