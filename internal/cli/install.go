@@ -15,10 +15,10 @@ import (
 // so later runs (and status) can tell them apart from foreign files.
 const wrapperMarker = "# tfvault-install wrapper"
 
-// shellQuote single-quotes s for POSIX sh, escaping embedded single
-// quotes with the standard '\” dance. Unlike double quotes (or Go's
-// %q), nothing inside single quotes is shell-expanded, so a path
-// containing $ or backticks cannot trigger expansion or injection.
+// shellQuote single-quotes s for POSIX sh, escaping each embedded
+// single quote as quote-backslash-quote-quote. Unlike double quotes
+// (or Go's %q), nothing inside single quotes is shell-expanded, so a
+// path containing $ or backticks cannot trigger expansion or injection.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
