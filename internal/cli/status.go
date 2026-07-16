@@ -290,6 +290,14 @@ func reportLink(pal *palette, stdout io.Writer, link string) bool {
 		fmt.Fprintf(stdout, "  %s %v\n", pal.fail("error:"), err)
 		return false
 	case info.Mode()&fs.ModeSymlink == 0:
+		if shim := readWrapperShim(link); shim != "" {
+			if _, err := os.Stat(shim); err != nil {
+				fmt.Fprintf(stdout, "  %s %s wraps mise shim %s (shim missing) — run \"tfvault install\"\n", pal.fail("broken:"), link, shim)
+				return false
+			}
+			fmt.Fprintf(stdout, "  %s %s wraps mise shim %s\n", pal.ok("ok:"), link, shim)
+			return true
+		}
 		fmt.Fprintf(stdout, "  %s %s is not a symlink (an old install?)\n", pal.warn("warning:"), link)
 		return true // a real binary there still works for Terraform
 	}

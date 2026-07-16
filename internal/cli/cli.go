@@ -18,8 +18,8 @@ Terraform credentials helper commands (invoked by Terraform):
   forget <hostname>   remove stored credentials for hostname
 
 Auxiliary commands:
-  install [-f]        symlink the helper into ~/.terraform.d/plugins
-                      (-f/--force replaces an existing non-symlink file)
+  install [-f]        link the helper into ~/.terraform.d/plugins
+                      (-f/--force replaces an unrecognized existing file)
   status              show plugin link, terraformrc and profile resolution
   profiles            list configured profiles
   list                list hostnames with stored credentials (never tokens)

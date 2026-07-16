@@ -42,6 +42,11 @@ mise use -g aqua:tedilabs/tfvault
 tfvault install   # link the helper into ~/.terraform.d/plugins
 ```
 
+For mise installs, `tfvault install` detects the mise-managed path and
+writes a small wrapper that execs the mise shim instead of symlinking
+the versioned binary: upgrading tfvault via mise never leaves a stale
+plugin link, and per-directory version pins are honored.
+
 Or the install script:
 
 ```sh
@@ -252,9 +257,10 @@ tfvault completion zsh > "${fpath[1]}/_tfvault"
 tfvault completion fish > ~/.config/fish/completions/tfvault.fish
 ```
 
-`install` refuses to overwrite anything at the link path that is not a
-symlink (e.g. a binary copied by an old installer); pass `-f`/`--force`
-to replace it.
+`install` refuses to overwrite anything at the link path it does not
+recognize as its own (a symlink or a tfvault-written shim wrapper —
+e.g. a binary copied by an old installer); pass `-f`/`--force` to
+replace it.
 
 `status` reads the Terraform CLI config (`$TF_CLI_CONFIG_FILE`, else
 `~/.terraformrc`) and reports the `credentials_helper` registration,
