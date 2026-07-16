@@ -58,6 +58,12 @@ func miseShimTarget(exe string) string {
 		}
 	}
 	shim := filepath.Join(exe[:i], "mise", "shims", filepath.Base(exe))
+	// A newline would break the wrapper's "# shim:" header and let path
+	// content escape into script lines; such a path falls back to the
+	// plain symlink, which handles any byte sequence.
+	if strings.ContainsAny(shim, "\r\n") {
+		return ""
+	}
 	if info, err := os.Stat(shim); err != nil || info.IsDir() {
 		return ""
 	}
@@ -178,7 +184,7 @@ func installLink(exe, dir string, force bool) (string, error) {
 			return fmt.Sprintf("Replaced %s -> %s (was a wrapper for mise shim %s)", link, exe, wasShim), nil
 		}
 		if !force {
-			return "", fmt.Errorf("%s exists and is not a symlink (an old install?); re-run with --force to replace it", link)
+			return "", fmt.Errorf("%s exists and is neither a symlink nor a tfvault wrapper (an old install?); re-run with --force to replace it", link)
 		}
 		if err := replaceLink(exe, link); err != nil {
 			return "", err
@@ -224,7 +230,7 @@ func installWrapper(shim, link string, force bool) (string, error) {
 		return fmt.Sprintf("Already installed: %s wraps mise shim %s", link, shim), nil
 	case "":
 		if !force {
-			return "", fmt.Errorf("%s exists and is not a symlink (an old install?); re-run with --force to replace it", link)
+			return "", fmt.Errorf("%s exists and is neither a symlink nor a tfvault wrapper (an old install?); re-run with --force to replace it", link)
 		}
 	}
 	if err := writeWrapper(link, content); err != nil {

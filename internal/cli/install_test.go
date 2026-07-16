@@ -279,6 +279,33 @@ func TestInstallMiseWrapperRefusesForeignFile(t *testing.T) {
 	}
 }
 
+// TestInstallMiseNewlinePathFallsBackToSymlink: a newline in the shim
+// path cannot be represented in the wrapper's "# shim:" header, so
+// install must fall back to the symlink, which handles any byte.
+func TestInstallMiseNewlinePathFallsBackToSymlink(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "new\nline")
+	exe := filepath.Join(base, "mise", "installs", "github-tedilabs-tfvault", "1.0.0", "tfvault")
+	shim := filepath.Join(base, "mise", "shims", "tfvault")
+	for _, p := range []string{filepath.Dir(exe), filepath.Dir(shim)} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{exe, shim} {
+		if err := os.WriteFile(p, []byte("fake"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := t.TempDir()
+	if _, err := installLink(exe, dir, false); err != nil {
+		t.Fatal(err)
+	}
+	if target, err := os.Readlink(filepath.Join(dir, pluginBinary)); err != nil || target != exe {
+		t.Errorf("target = %q, err = %v (want symlink fallback for newline path)", target, err)
+	}
+}
+
 // TestInstallMiseWrapperQuoting builds a mise layout under a directory
 // whose name contains shell-active characters and runs the generated
 // wrapper through a real sh: expansion or injection would either fail

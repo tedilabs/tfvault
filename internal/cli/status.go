@@ -292,7 +292,11 @@ func reportLink(pal *palette, stdout io.Writer, link string) bool {
 	case info.Mode()&fs.ModeSymlink == 0:
 		if shim := readWrapperShim(link); shim != "" {
 			if _, err := os.Stat(shim); err != nil {
-				fmt.Fprintf(stdout, "  %s %s wraps mise shim %s (shim missing) — run \"tfvault install\"\n", pal.fail("broken:"), link, shim)
+				reason := "shim missing"
+				if !errors.Is(err, fs.ErrNotExist) {
+					reason = err.Error()
+				}
+				fmt.Fprintf(stdout, "  %s %s wraps mise shim %s (%s) — run \"tfvault install\"\n", pal.fail("broken:"), link, shim, reason)
 				return false
 			}
 			fmt.Fprintf(stdout, "  %s %s wraps mise shim %s\n", pal.ok("ok:"), link, shim)
