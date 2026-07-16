@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -275,6 +276,44 @@ func TestInstallMiseWrapperRefusesForeignFile(t *testing.T) {
 	}
 	if !strings.HasPrefix(msg, "Updated") {
 		t.Errorf("msg = %q", msg)
+	}
+}
+
+// TestInstallMiseWrapperQuoting builds a mise layout under a directory
+// whose name contains shell-active characters and runs the generated
+// wrapper through a real sh: expansion or injection would either fail
+// the exec or change the output.
+func TestInstallMiseWrapperQuoting(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "we`ird $HOME it's")
+	exe := filepath.Join(base, "mise", "installs", "github-tedilabs-tfvault", "1.0.0", "tfvault")
+	shim := filepath.Join(base, "mise", "shims", "tfvault")
+	for _, p := range []string{filepath.Dir(exe), filepath.Dir(shim)} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(exe, []byte("fake binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(shim, []byte("#!/bin/sh\necho shim-ok \"$1\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	if _, err := installLink(exe, dir, false); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, pluginBinary)
+	if got := readWrapperShim(link); got != shim {
+		t.Fatalf("wrapper shim = %q, want %q", got, shim)
+	}
+
+	out, err := exec.Command(link, "get").CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper failed to exec shim: %v\n%s", err, out)
+	}
+	if string(out) != "shim-ok get\n" {
+		t.Errorf("wrapper output = %q, want %q", out, "shim-ok get\n")
 	}
 }
 

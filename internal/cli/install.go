@@ -15,17 +15,28 @@ import (
 // so later runs (and status) can tell them apart from foreign files.
 const wrapperMarker = "# tfvault-install wrapper"
 
+// shellQuote single-quotes s for POSIX sh, escaping embedded single
+// quotes with the standard '\” dance. Unlike double quotes (or Go's
+// %q), nothing inside single quotes is shell-expanded, so a path
+// containing $ or backticks cannot trigger expansion or injection.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // wrapperScript is the plugin entry written for mise installs: it execs
 // the mise shim so the helper follows mise's active tfvault version
 // (including per-directory pins) instead of pinning one release binary
-// that goes stale on every upgrade.
+// that goes stale on every upgrade. The "# shim:" line carries the
+// unescaped path for readWrapperShim, so parsing never has to undo
+// shell quoting.
 func wrapperScript(shim string) string {
 	return fmt.Sprintf(`#!/bin/sh
 %s
+# shim: %s
 # Execs the mise shim so the helper follows mise's active tfvault
 # version. Regenerate with "tfvault install".
-exec %q "$@"
-`, wrapperMarker, shim)
+exec %s "$@"
+`, wrapperMarker, shim, shellQuote(shim))
 }
 
 // miseShimTarget returns the mise shim to wrap when exe lives inside a
@@ -67,10 +78,8 @@ func readWrapperShim(path string) string {
 		return ""
 	}
 	for _, line := range strings.Split(string(src), "\n") {
-		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), `exec "`); ok {
-			if shim, _, ok := strings.Cut(rest, `"`); ok {
-				return shim
-			}
+		if shim, ok := strings.CutPrefix(line, "# shim: "); ok {
+			return shim
 		}
 	}
 	return ""
