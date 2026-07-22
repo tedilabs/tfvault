@@ -317,6 +317,23 @@ programs consume it.
   [#14](https://github.com/tedilabs/tfvault/issues/14) and
   [#13](https://github.com/tedilabs/tfvault/issues/13).
 
+## Related projects
+
+tfvault is not the first helper in this space, and it is better for
+it — the maintainers below generously shared production lessons that
+directly shaped this project's roadmap:
+
+- [terracreds](https://github.com/tonedefdev/terracreds) — the broadest
+  helper around: Windows Credential Manager plus cloud vault providers
+  (AWS, Azure, GCP, HashiCorp Vault) across TFC/TFE, Scalr, Spacelift
+  and env0. If you need Windows or a cloud vault today, start there.
+- [terraform-credentials-keychain](https://github.com/bendrucker/terraform-credentials-keychain) —
+  a focused macOS Keychain helper with signed and notarized release
+  binaries.
+
+Reach for tfvault when you want pluggable local backends with
+per-profile multi-account isolation on macOS and Linux.
+
 ## Development
 
 ```sh
