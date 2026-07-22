@@ -317,6 +317,17 @@ programs consume it.
   [#14](https://github.com/tedilabs/tfvault/issues/14) and
   [#13](https://github.com/tedilabs/tfvault/issues/13).
 
+## Development
+
+```sh
+go test ./...                       # unit + protocol compliance tests
+go test -tags integration ./...    # real pass/gopass round trips (needs gpg)
+go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+```
+
+The Terraform credentials helper protocol is documented at
+[developer.hashicorp.com/terraform/internals/credentials-helpers](https://developer.hashicorp.com/terraform/internals/credentials-helpers).
+
 ## Related projects
 
 tfvault is not the first helper in this space, and it is better for
@@ -333,17 +344,6 @@ directly shaped this project's roadmap:
 
 Reach for tfvault when you want pluggable local backends with
 per-profile multi-account isolation on macOS and Linux.
-
-## Development
-
-```sh
-go test ./...                       # unit + protocol compliance tests
-go test -tags integration ./...    # real pass/gopass round trips (needs gpg)
-go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
-```
-
-The Terraform credentials helper protocol is documented at
-[developer.hashicorp.com/terraform/internals/credentials-helpers](https://developer.hashicorp.com/terraform/internals/credentials-helpers).
 
 ## License
 
