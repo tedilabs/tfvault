@@ -328,6 +328,23 @@ go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
 The Terraform credentials helper protocol is documented at
 [developer.hashicorp.com/terraform/internals/credentials-helpers](https://developer.hashicorp.com/terraform/internals/credentials-helpers).
 
+## Related projects
+
+tfvault is not the first helper in this space, and it is better for
+it — the maintainers below generously shared production lessons that
+directly shaped this project's roadmap:
+
+- [terracreds](https://github.com/tonedefdev/terracreds) — the broadest
+  helper around: Windows Credential Manager plus cloud vault providers
+  (AWS, Azure, GCP, HashiCorp Vault) across TFC/TFE, Scalr, Spacelift
+  and env0. If you need Windows or a cloud vault today, start there.
+- [terraform-credentials-keychain](https://github.com/bendrucker/terraform-credentials-keychain) —
+  a focused macOS Keychain helper with signed and notarized release
+  binaries.
+
+Reach for tfvault when you want pluggable local backends with
+per-profile multi-account isolation on macOS and Linux.
+
 ## License
 
 [Apache License 2.0](LICENSE)
